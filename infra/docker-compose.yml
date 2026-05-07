@@ -1,0 +1,84 @@
+version: '3.9'
+
+services:
+  auditi-app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: auditi-app
+    restart: unless-stopped
+    ports:
+      - '3100:3000'
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - RESPONSE_TOKEN_SECRET=${RESPONSE_TOKEN_SECRET}
+      - OBS_ACCESS_KEY=${OBS_ACCESS_KEY}
+      - OBS_SECRET_KEY=${OBS_SECRET_KEY}
+      - OBS_BUCKET=${OBS_BUCKET}
+      - BREVO_LOGIN=${BREVO_LOGIN}
+      - BREVO_SMTP_KEY=${BREVO_SMTP_KEY}
+      - REDIS_URL=redis://auditi-redis:6379
+    depends_on:
+      auditi-redis:
+        condition: service_healthy
+    networks:
+      - auditi-net
+
+  auditi-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile.worker
+    container_name: auditi-worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - OBS_ACCESS_KEY=${OBS_ACCESS_KEY}
+      - OBS_SECRET_KEY=${OBS_SECRET_KEY}
+      - OBS_BUCKET=${OBS_BUCKET}
+      - BREVO_LOGIN=${BREVO_LOGIN}
+      - BREVO_SMTP_KEY=${BREVO_SMTP_KEY}
+      - REDIS_URL=redis://auditi-redis:6379
+    depends_on:
+      auditi-redis:
+        condition: service_healthy
+    networks:
+      - auditi-net
+
+  auditi-redis:
+    image: redis:7-alpine
+    container_name: auditi-redis
+    restart: unless-stopped
+    volumes:
+      - auditi-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - auditi-net
+
+  auditi-nginx:
+    image: nginx:alpine
+    container_name: auditi-nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - auditi-app
+    networks:
+      - auditi-net
+
+volumes:
+  auditi-redis-data:
+
+networks:
+  auditi-net:
+    driver: bridge

@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  role         Role      @default(WP_TEAM)
+  passwordHash String?
+  createdAt    DateTime  @default(now())
+  mandant      Mandant?  @relation(fields: [mandantId], references: [id])
+  mandantId    String?
+  pbcMembers   PbcMember[]
+}
+
+model Mandant {
+  id          String       @id @default(cuid())
+  name        String
+  legalName   String?
+  taxId       String?
+  address     Json
+  logoUrl     String?
+  users       User[]
+  engagements Engagement[]
+  createdAt   DateTime     @default(now())
+}
+
+model Engagement {
+  id           String               @id @default(cuid())
+  mandant      Mandant              @relation(fields: [mandantId], references: [id])
+  mandantId    String
+  title        String
+  fiscalYear   Int
+  type         EngagementType
+  status       EngagementStatus     @default(ACTIVE)
+  campaigns    ConfirmationCampaign[]
+  pbcWorkspace PbcWorkspace?
+  createdAt    DateTime             @default(now())
+}
+
+model ConfirmationCampaign {
+  id           String                @id @default(cuid())
+  engagement   Engagement            @relation(fields: [engagementId], references: [id])
+  engagementId String
+  title        String
+  balanceDate  DateTime
+  status       CampaignStatus        @default(DRAFT)
+  requests     ConfirmationRequest[]
+  createdAt    DateTime              @default(now())
+}
+
+model ConfirmationRequest {
+  id              String                @id @default(cuid())
+  campaign        ConfirmationCampaign  @relation(fields: [campaignId], references: [id])
+  campaignId      String
+  partnerName     String
+  partnerEmail    String
+  partnerAddress  Json?
+  accountNumber   String?
+  expectedBalance Decimal               @db.Decimal(18, 2)
+  currency        String                @default("EUR")
+  status          RequestStatus         @default(DRAFT)
+  publicToken     String                @unique @default(cuid())
+  tokenExpiresAt  DateTime
+  sentAt          DateTime?
+  respondedAt     DateTime?
+  reminderCount   Int                   @default(0)
+  lastReminderAt  DateTime?
+  pdfKey          String?
+  response        ConfirmationResponse?
+  auditLog        AuditEvent[]
+  createdAt       DateTime              @default(now())
+}
+
+model ConfirmationResponse {
+  id               String              @id @default(cuid())
+  request          ConfirmationRequest @relation(fields: [requestId], references: [id])
+  requestId        String              @unique
+  confirmedBalance Decimal?            @db.Decimal(18, 2)
+  hasDifference    Boolean             @default(false)
+  differenceNote   String?
+  attachmentKey    String?
+  respondedBy      String
+  respondedAt      DateTime            @default(now())
+  ipAddress        String?
+  comments         DifferenceComment[]
+}
+
+model DifferenceComment {
+  id         String               @id @default(cuid())
+  response   ConfirmationResponse @relation(fields: [responseId], references: [id])
+  responseId String
+  author     String
+  role       String
+  text       String
+  createdAt  DateTime             @default(now())
+}
+
+model AuditEvent {
+  id        String              @id @default(cuid())
+  request   ConfirmationRequest @relation(fields: [requestId], references: [id])
+  requestId String
+  event     String
+  actor     String?
+  meta      Json?
+  createdAt DateTime            @default(now())
+}
+
+model PbcWorkspace {
+  id           String           @id @default(cuid())
+  engagement   Engagement       @relation(fields: [engagementId], references: [id])
+  engagementId String           @unique
+  requestLists PbcRequestList[]
+  members      PbcMember[]
+  createdAt    DateTime         @default(now())
+}
+
+model PbcMember {
+  id          String       @id @default(cuid())
+  workspace   PbcWorkspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  user        User         @relation(fields: [userId], references: [id])
+  userId      String
+  role        PbcRole
+}
+
+model PbcRequestList {
+  id           String           @id @default(cuid())
+  workspace    PbcWorkspace     @relation(fields: [workspaceId], references: [id])
+  workspaceId  String
+  title        String
+  fromTemplate String?
+  items        PbcRequestItem[]
+  createdAt    DateTime         @default(now())
+}
+
+model PbcRequestItem {
+  id          String          @id @default(cuid())
+  list        PbcRequestList  @relation(fields: [listId], references: [id])
+  listId      String
+  title       String
+  description String?
+  assignedTo  String?
+  dueDate     DateTime?
+  status      PbcItemStatus   @default(OPEN)
+  files       PbcFile[]
+  comments    PbcComment[]
+  sortOrder   Int             @default(0)
+}
+
+model PbcFile {
+  id         String         @id @default(cuid())
+  item       PbcRequestItem @relation(fields: [itemId], references: [id])
+  itemId     String
+  filename   String
+  obsKey     String
+  mimeType   String
+  sizeBytes  Int
+  uploadedBy String
+  virusScan  String         @default("PENDING")
+  createdAt  DateTime       @default(now())
+}
+
+model PbcComment {
+  id        String         @id @default(cuid())
+  item      PbcRequestItem @relation(fields: [itemId], references: [id])
+  itemId    String
+  author    String
+  role      String
+  text      String
+  createdAt DateTime       @default(now())
+}
+
+enum Role {
+  WP_ADMIN
+  WP_TEAM
+  MANDANT_ADMIN
+  MANDANT_USER
+}
+
+enum PbcRole {
+  WP_LEAD
+  WP_TEAM
+  MANDANT_ADMIN
+  MANDANT_UPLOADER
+}
+
+enum EngagementType {
+  JAHRESABSCHLUSS
+  SONDERPRUEFUNG
+  DUE_DILIGENCE
+}
+
+enum EngagementStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum RequestStatus {
+  DRAFT
+  QUEUED
+  SENT
+  RESPONDED
+  CLOSED
+  BOUNCED
+}
+
+enum PbcItemStatus {
+  OPEN
+  UPLOADED
+  ACCEPTED
+  NEEDS_REVISION
+}

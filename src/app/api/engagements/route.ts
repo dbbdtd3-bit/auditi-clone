@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { EngagementType } from '@prisma/client';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 
 const VALID_TYPES = ['JAHRESABSCHLUSS', 'SONDERPRUEFUNG', 'DUE_DILIGENCE'];
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
           mandantId,
           title,
           fiscalYear: Number(fiscalYear),
-          type,
+          type: type as EngagementType,
           status: 'ACTIVE',
         },
       });

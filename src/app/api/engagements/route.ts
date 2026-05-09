@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+
+const VALID_TYPES = ['JAHRESABSCHLUSS', 'SONDERPRUEFUNG', 'DUE_DILIGENCE'];
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const engagements = await prisma.engagement.findMany({
       include: { mandant: true },
@@ -21,8 +24,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const body = await req.json();
     const { mandantId, title, fiscalYear, type } = body as {
@@ -36,13 +40,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Alle Pflichtfelder sind erforderlich' }, { status: 400 });
     }
 
+    if (!VALID_TYPES.includes(type)) {
+      return NextResponse.json({ error: 'Ungültiger Auftragstyp' }, { status: 400 });
+    }
+
     const engagement = await prisma.$transaction(async (tx) => {
       const eng = await tx.engagement.create({
         data: {
           mandantId,
           title,
           fiscalYear: Number(fiscalYear),
-          type: type as 'JAHRESABSCHLUSS' | 'SONDERPRUEFUNG' | 'DUE_DILIGENCE',
+          type,
           status: 'ACTIVE',
         },
       });

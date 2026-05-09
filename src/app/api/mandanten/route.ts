@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+
+    if (!isWpUser(user)) {
+      return NextResponse.json([]);
+    }
 
     const mandanten = await prisma.mandant.findMany({
       include: {
@@ -25,8 +29,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const body = await req.json();
     const { name, legalName, taxId, address } = body as {

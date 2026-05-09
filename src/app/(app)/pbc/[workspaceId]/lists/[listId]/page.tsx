@@ -55,6 +55,7 @@ export default async function ListPage({
   const list = await getList(listId);
 
   if (!list) notFound();
+  if (list.workspaceId !== workspaceId) notFound();
 
   const engagement = list.workspace.engagement;
 

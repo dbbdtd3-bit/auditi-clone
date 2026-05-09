@@ -48,11 +48,7 @@ export function CommentSection({ itemId, comments: initialComments, currentUserN
       const res = await fetch(`/api/pbc/items/${itemId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: text.trim(),
-          author: currentUserName,
-          role: currentUserRole,
-        }),
+        body: JSON.stringify({ text: text.trim() }),
       });
 
       const data = await res.json();

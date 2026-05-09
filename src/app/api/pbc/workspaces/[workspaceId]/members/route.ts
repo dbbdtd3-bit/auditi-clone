@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
+
+const VALID_ROLES = ['WP_LEAD', 'WP_TEAM', 'MANDANT_ADMIN', 'MANDANT_UPLOADER'];
+
+async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
+  if (isWp) return true;
+  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
+  return member !== null;
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ workspaceId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
 
     const { workspaceId } = await params;
+
+    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
 
     const members = await prisma.pbcMember.findMany({
       where: { workspaceId },
@@ -30,8 +41,9 @@ export async function POST(
   { params }: { params: Promise<{ workspaceId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { workspaceId } = await params;
     const body = await req.json();
@@ -41,14 +53,18 @@ export async function POST(
       return NextResponse.json({ error: 'E-Mail und Rolle sind erforderlich' }, { status: 400 });
     }
 
-    const member = await prisma.$transaction(async (tx) => {
-      let user = await tx.user.findUnique({ where: { email } });
+    if (!VALID_ROLES.includes(role)) {
+      return NextResponse.json({ error: 'Ungültige Rolle' }, { status: 400 });
+    }
 
-      if (!user) {
-        const tempPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+    const member = await prisma.$transaction(async (tx) => {
+      let dbUser = await tx.user.findUnique({ where: { email } });
+
+      if (!dbUser) {
+        const tempPassword = randomBytes(16).toString('hex');
         const passwordHash = await bcrypt.hash(tempPassword, 12);
 
-        user = await tx.user.create({
+        dbUser = await tx.user.create({
           data: {
             email,
             name: email.split('@')[0],
@@ -59,7 +75,7 @@ export async function POST(
       }
 
       const existingMember = await tx.pbcMember.findFirst({
-        where: { workspaceId, userId: user.id },
+        where: { workspaceId, userId: dbUser.id },
       });
 
       if (existingMember) {
@@ -69,8 +85,8 @@ export async function POST(
       return tx.pbcMember.create({
         data: {
           workspaceId,
-          userId: user.id,
-          role: role as 'WP_LEAD' | 'WP_TEAM' | 'MANDANT_ADMIN' | 'MANDANT_UPLOADER',
+          userId: dbUser.id,
+          role,
         },
         include: { user: true },
       });

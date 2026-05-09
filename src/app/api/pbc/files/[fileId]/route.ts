@@ -1,26 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { getPresignedDownload, deleteObject } from '@/lib/obs';
+
+async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
+  if (isWp) return true;
+  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
+  return member !== null;
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ fileId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
 
     const { fileId } = await params;
 
-    const file = await prisma.pbcFile.findUnique({ where: { id: fileId } });
+    const file = await prisma.pbcFile.findUnique({
+      where: { id: fileId },
+      select: { obsKey: true, item: { select: { list: { select: { workspaceId: true } } } } },
+    });
     if (!file) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     }
 
-    const downloadUrl = await getPresignedDownload(file.obsKey);
+    const workspaceId = file.item.list.workspaceId;
+    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
 
-    return NextResponse.json({ ...file, downloadUrl });
+    const fullFile = await prisma.pbcFile.findUnique({ where: { id: fileId } });
+    if (!fullFile) {
+      return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    }
+
+    const downloadUrl = await getPresignedDownload(fullFile.obsKey);
+
+    return NextResponse.json({ ...fullFile, downloadUrl });
   } catch (error) {
     console.error('GET /api/pbc/files/[fileId] error:', error);
     return NextResponse.json({ error: 'Interner Fehler' }, { status: 500 });
@@ -32,8 +49,9 @@ export async function DELETE(
   { params }: { params: Promise<{ fileId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { fileId } = await params;
 

@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+
+const VALID_TYPES = ['JAHRESABSCHLUSS', 'SONDERPRUEFUNG', 'DUE_DILIGENCE'];
+const VALID_STATUSES = ['ACTIVE', 'COMPLETED', 'ARCHIVED'];
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { id } = await params;
 
@@ -37,8 +41,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { id } = await params;
     const body = await req.json();
@@ -49,13 +54,20 @@ export async function PUT(
       status?: string;
     };
 
+    if (type && !VALID_TYPES.includes(type)) {
+      return NextResponse.json({ error: 'Ungültiger Typ' }, { status: 400 });
+    }
+    if (status && !VALID_STATUSES.includes(status)) {
+      return NextResponse.json({ error: 'Ungültiger Status' }, { status: 400 });
+    }
+
     const engagement = await prisma.engagement.update({
       where: { id },
       data: {
         ...(title !== undefined && { title }),
         ...(fiscalYear !== undefined && { fiscalYear: Number(fiscalYear) }),
-        ...(type !== undefined && { type: type as 'JAHRESABSCHLUSS' | 'SONDERPRUEFUNG' | 'DUE_DILIGENCE' }),
-        ...(status !== undefined && { status: status as 'ACTIVE' | 'COMPLETED' | 'ARCHIVED' }),
+        ...(type !== undefined && { type }),
+        ...(status !== undefined && { status }),
       },
     });
 
@@ -71,8 +83,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { id } = await params;
 
@@ -81,7 +94,6 @@ export async function DELETE(
     });
 
     if (campaignCount > 0) {
-      // Soft-delete: archive
       const engagement = await prisma.engagement.update({
         where: { id },
         data: { status: 'ARCHIVED' },

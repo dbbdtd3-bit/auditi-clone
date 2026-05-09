@@ -65,13 +65,16 @@ export default async function ItemDetailPage({
   const [item, session] = await Promise.all([getItem(itemId), auth()]);
 
   if (!item) notFound();
+  if (item.list.workspaceId !== workspaceId) notFound();
+  if (item.listId !== listId) notFound();
 
   const engagement = item.list.workspace.engagement;
   const cfg = statusConfig[item.status] || statusConfig.OPEN;
 
   const currentUser = session?.user as { name?: string; role?: string } | undefined;
   const currentUserName = currentUser?.name || 'Unbekannt';
-  const currentUserRole = currentUser?.role || 'WP_TEAM';
+  const currentUserRole = currentUser?.role || '';
+  const isWpUser = ['WP_ADMIN', 'WP_TEAM'].includes(currentUserRole);
 
   // Load presigned download URLs server-side
   const filesWithUrls = await Promise.all(
@@ -165,7 +168,7 @@ export default async function ItemDetailPage({
 
                 {/* Status actions for WP team */}
                 <div className="pt-2 border-t border-slate-100">
-                  <ItemStatusActions itemId={itemId} currentStatus={item.status} />
+                  <ItemStatusActions itemId={itemId} currentStatus={item.status} isWpUser={isWpUser} />
                 </div>
               </CardContent>
             </Card>
@@ -198,7 +201,7 @@ export default async function ItemDetailPage({
                   </h3>
                 </div>
 
-                <FileUploader itemId={itemId} uploaderName={currentUserName} />
+                <FileUploader itemId={itemId} />
 
                 {filesWithUrls.length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-slate-100">

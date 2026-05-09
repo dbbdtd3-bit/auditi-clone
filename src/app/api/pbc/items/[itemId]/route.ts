@@ -1,17 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { deleteObject } from '@/lib/obs';
+
+const VALID_STATUSES = ['OPEN', 'UPLOADED', 'ACCEPTED', 'NEEDS_REVISION'];
+
+async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
+  if (isWp) return true;
+  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
+  return member !== null;
+}
+
+async function getItemWorkspaceId(itemId: string): Promise<string | null> {
+  const item = await prisma.pbcRequestItem.findUnique({
+    where: { id: itemId },
+    select: { list: { select: { workspaceId: true } } },
+  });
+  return item?.list?.workspaceId ?? null;
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ itemId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
 
     const { itemId } = await params;
+
+    const workspaceId = await getItemWorkspaceId(itemId);
+    if (!workspaceId) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+
+    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
 
     const item = await prisma.pbcRequestItem.findUnique({
       where: { id: itemId },
@@ -44,8 +65,9 @@ export async function PUT(
   { params }: { params: Promise<{ itemId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { itemId } = await params;
     const body = await req.json();
@@ -57,14 +79,30 @@ export async function PUT(
       dueDate?: string | null;
     };
 
+    if (status && !VALID_STATUSES.includes(status)) {
+      return NextResponse.json({ error: 'Ungültiger Status' }, { status: 400 });
+    }
+
+    let parsedDueDate: Date | null | undefined = undefined;
+    if (dueDate !== undefined) {
+      if (dueDate === null) {
+        parsedDueDate = null;
+      } else {
+        parsedDueDate = new Date(dueDate);
+        if (isNaN(parsedDueDate.getTime())) {
+          return NextResponse.json({ error: 'Ungültiges Datum' }, { status: 400 });
+        }
+      }
+    }
+
     const item = await prisma.pbcRequestItem.update({
       where: { id: itemId },
       data: {
         ...(title !== undefined && { title }),
         ...(description !== undefined && { description }),
-        ...(status !== undefined && { status: status as 'OPEN' | 'UPLOADED' | 'ACCEPTED' | 'NEEDS_REVISION' }),
+        ...(status !== undefined && { status }),
         ...(assignedTo !== undefined && { assignedTo }),
-        ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+        ...(parsedDueDate !== undefined && { dueDate: parsedDueDate }),
       },
     });
 
@@ -80,8 +118,9 @@ export async function DELETE(
   { params }: { params: Promise<{ itemId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { itemId } = await params;
 

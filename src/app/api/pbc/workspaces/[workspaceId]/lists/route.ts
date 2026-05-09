@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+
+async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
+  if (isWp) return true;
+  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
+  return member !== null;
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ workspaceId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
 
     const { workspaceId } = await params;
+
+    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
 
     const lists = await prisma.pbcRequestList.findMany({
       where: { workspaceId },
@@ -30,8 +38,9 @@ export async function POST(
   { params }: { params: Promise<{ workspaceId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { workspaceId } = await params;
     const body = await req.json();

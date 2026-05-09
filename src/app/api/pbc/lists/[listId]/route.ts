@@ -1,16 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { deleteObject } from '@/lib/obs';
+
+async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
+  if (isWp) return true;
+  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
+  return member !== null;
+}
+
+async function getListWorkspaceId(listId: string): Promise<string | null> {
+  const list = await prisma.pbcRequestList.findUnique({
+    where: { id: listId },
+    select: { workspaceId: true },
+  });
+  return list?.workspaceId ?? null;
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ listId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
 
     const { listId } = await params;
+
+    const workspaceId = await getListWorkspaceId(listId);
+    if (!workspaceId) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+
+    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
 
     const list = await prisma.pbcRequestList.findUnique({
       where: { id: listId },
@@ -40,8 +60,9 @@ export async function PUT(
   { params }: { params: Promise<{ listId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { listId } = await params;
     const body = await req.json();
@@ -64,12 +85,26 @@ export async function DELETE(
   { params }: { params: Promise<{ listId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { listId } = await params;
 
+    const files = await prisma.pbcFile.findMany({
+      where: { item: { listId } },
+      select: { obsKey: true },
+    });
+
     await prisma.pbcRequestList.delete({ where: { id: listId } });
+
+    for (const file of files) {
+      try {
+        await deleteObject(file.obsKey);
+      } catch (err) {
+        console.error(`OBS cleanup failed for key ${file.obsKey}:`, err);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

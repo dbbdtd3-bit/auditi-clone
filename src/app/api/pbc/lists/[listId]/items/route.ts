@@ -1,16 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+
+async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
+  if (isWp) return true;
+  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
+  return member !== null;
+}
+
+async function getListWorkspaceId(listId: string): Promise<string | null> {
+  const list = await prisma.pbcRequestList.findUnique({
+    where: { id: listId },
+    select: { workspaceId: true },
+  });
+  return list?.workspaceId ?? null;
+}
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ listId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { listId } = await params;
+
+    const workspaceId = await getListWorkspaceId(listId);
+    if (!workspaceId) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+
+    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
+
     const body = await req.json();
     const { title, description, dueDate } = body as {
       title: string;
@@ -20,6 +41,14 @@ export async function POST(
 
     if (!title) {
       return NextResponse.json({ error: 'Titel ist erforderlich' }, { status: 400 });
+    }
+
+    let parsedDueDate: Date | null = null;
+    if (dueDate) {
+      parsedDueDate = new Date(dueDate);
+      if (isNaN(parsedDueDate.getTime())) {
+        return NextResponse.json({ error: 'Ungültiges Datum' }, { status: 400 });
+      }
     }
 
     const maxSortOrder = await prisma.pbcRequestItem.aggregate({
@@ -34,7 +63,7 @@ export async function POST(
         listId,
         title,
         description: description || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
+        dueDate: parsedDueDate,
         sortOrder,
       },
     });

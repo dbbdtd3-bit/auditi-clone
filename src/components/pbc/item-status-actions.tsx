@@ -8,14 +8,15 @@ import { CheckCircle2, AlertTriangle } from 'lucide-react';
 interface Props {
   itemId: string;
   currentStatus: string;
+  isWpUser: boolean;
 }
 
-export function ItemStatusActions({ itemId, currentStatus }: Props) {
+export function ItemStatusActions({ itemId, currentStatus, isWpUser }: Props) {
   const router = useRouter();
   const [loading, setLoading] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  if (currentStatus !== 'UPLOADED') return null;
+  if (currentStatus !== 'UPLOADED' || !isWpUser) return null;
 
   async function setStatus(status: 'ACCEPTED' | 'NEEDS_REVISION') {
     setError(null);

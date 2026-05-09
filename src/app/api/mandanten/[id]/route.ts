@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { id } = await params;
     const body = await req.json();
@@ -41,23 +42,31 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    if (!isWpUser(user)) return forbidden();
 
     const { id } = await params;
 
-    const activeEngagements = await prisma.engagement.count({
-      where: { mandantId: id, status: 'ACTIVE' },
-    });
-
-    if (activeEngagements > 0) {
-      return NextResponse.json(
-        { error: 'Mandant hat noch aktive Engagements und kann nicht gelöscht werden.' },
-        { status: 400 }
-      );
+    try {
+      await prisma.$transaction(async (tx) => {
+        const activeCount = await tx.engagement.count({
+          where: { mandantId: id, status: 'ACTIVE' },
+        });
+        if (activeCount > 0) {
+          throw Object.assign(new Error('ACTIVE_ENGAGEMENTS'), { code: 'ACTIVE_ENGAGEMENTS' });
+        }
+        await tx.mandant.delete({ where: { id } });
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === 'ACTIVE_ENGAGEMENTS') {
+        return NextResponse.json(
+          { error: 'Mandant hat noch aktive Engagements und kann nicht gelöscht werden.' },
+          { status: 400 }
+        );
+      }
+      throw err;
     }
-
-    await prisma.mandant.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 
 interface Props {
   itemId: string;
-  uploaderName: string;
 }
 
 interface UploadStatus {
@@ -16,7 +15,7 @@ interface UploadStatus {
   error?: string;
 }
 
-export function FileUploader({ itemId, uploaderName }: Props) {
+export function FileUploader({ itemId }: Props) {
   const router = useRouter();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [uploads, setUploads] = React.useState<UploadStatus[]>([]);
@@ -67,7 +66,6 @@ export function FileUploader({ itemId, uploaderName }: Props) {
           obsKey,
           mimeType: file.type || 'application/octet-stream',
           sizeBytes: file.size,
-          uploadedBy: uploaderName,
         }),
       });
 
@@ -78,7 +76,6 @@ export function FileUploader({ itemId, uploaderName }: Props) {
       }
 
       updateUpload(file.name, { state: 'done' });
-      router.refresh();
     } catch {
       updateUpload(file.name, { state: 'error', error: 'Unbekannter Fehler' });
     }
@@ -94,6 +91,7 @@ export function FileUploader({ itemId, uploaderName }: Props) {
     for (const file of files) {
       await uploadFile(file);
     }
+    router.refresh();
   }
 
   const hasActiveUploads = uploads.some((u) => u.state === 'uploading');

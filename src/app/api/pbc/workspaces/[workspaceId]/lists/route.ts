@@ -44,14 +44,39 @@ export async function POST(
 
     const { workspaceId } = await params;
     const body = await req.json();
-    const { title } = body as { title: string };
+    const { title, templateId } = body as { title: string; templateId?: string };
 
     if (!title) {
       return NextResponse.json({ error: 'Titel ist erforderlich' }, { status: 400 });
     }
 
+    let templateItems: { title: string; description: string | null; sortOrder: number }[] = [];
+    let fromTemplate: string | null = null;
+
+    if (templateId) {
+      const template = await prisma.pbcTemplate.findUnique({
+        where: { id: templateId },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+      if (!template) {
+        return NextResponse.json({ error: 'Vorlage nicht gefunden' }, { status: 404 });
+      }
+      templateItems = template.items.map((i) => ({
+        title: i.title,
+        description: i.description,
+        sortOrder: i.sortOrder,
+      }));
+      fromTemplate = template.name;
+    }
+
     const list = await prisma.pbcRequestList.create({
-      data: { workspaceId, title },
+      data: {
+        workspaceId,
+        title,
+        fromTemplate,
+        items: templateItems.length > 0 ? { create: templateItems } : undefined,
+      },
+      include: { _count: { select: { items: true } } },
     });
 
     return NextResponse.json(list, { status: 201 });

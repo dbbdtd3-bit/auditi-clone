@@ -9,17 +9,10 @@ services:
     restart: unless-stopped
     ports:
       - '3100:3000'
+    env_file:
+      - ../.env
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - RESPONSE_TOKEN_SECRET=${RESPONSE_TOKEN_SECRET}
-      - OBS_ACCESS_KEY=${OBS_ACCESS_KEY}
-      - OBS_SECRET_KEY=${OBS_SECRET_KEY}
-      - OBS_BUCKET=${OBS_BUCKET}
-      - BREVO_LOGIN=${BREVO_LOGIN}
-      - BREVO_SMTP_KEY=${BREVO_SMTP_KEY}
       - REDIS_URL=redis://auditi-redis:6379
     depends_on:
       auditi-redis:
@@ -33,15 +26,10 @@ services:
       dockerfile: Dockerfile.worker
     container_name: auditi-worker
     restart: unless-stopped
+    env_file:
+      - ../.env
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
-      - OBS_ACCESS_KEY=${OBS_ACCESS_KEY}
-      - OBS_SECRET_KEY=${OBS_SECRET_KEY}
-      - OBS_BUCKET=${OBS_BUCKET}
-      - BREVO_LOGIN=${BREVO_LOGIN}
-      - BREVO_SMTP_KEY=${BREVO_SMTP_KEY}
       - REDIS_URL=redis://auditi-redis:6379
     depends_on:
       auditi-redis:

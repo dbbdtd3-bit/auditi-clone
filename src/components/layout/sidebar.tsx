@@ -55,8 +55,6 @@ const featureNav: NavItem[] = [
     label: 'Dokumentenaustausch',
     href: '/pbc',
     icon: FolderOpen,
-    disabled: true,
-    badge: 'Bald verfügbar',
   },
 ];
 
@@ -133,27 +131,48 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
         {featureNav.map((item) => {
           const Icon = item.icon;
 
-          return (
-            <div
-              key={item.href}
-              className="group relative"
-              title={item.badge}
-            >
+          if (item.disabled) {
+            return (
               <div
-                className={cn(
-                  'flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium cursor-not-allowed',
-                  'text-slate-600'
-                )}
+                key={item.href}
+                className="group relative"
+                title={item.badge}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{item.label}</span>
-                {item.badge && (
-                  <span className="ml-auto text-[9px] font-medium bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">
-                    Bald
-                  </span>
-                )}
+                <div
+                  className={cn(
+                    'flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium cursor-not-allowed',
+                    'text-slate-600'
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{item.label}</span>
+                  {item.badge && (
+                    <span className="ml-auto text-[9px] font-medium bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full">
+                      Bald
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            );
+          }
+
+          const isActive =
+            pathname === item.href || pathname.startsWith(item.href + '/');
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {item.label}
+            </Link>
           );
         })}
       </nav>

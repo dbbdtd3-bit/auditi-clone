@@ -2,8 +2,9 @@ import { prisma } from '@/lib/db';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Briefcase, Plus, Building2, Calendar } from 'lucide-react';
+import { Briefcase, Building2, Calendar } from 'lucide-react';
+import Link from 'next/link';
+import { CreateEngagementDialog } from '@/components/engagements/create-engagement-dialog';
 
 const engagementTypeLabel: Record<string, string> = {
   JAHRESABSCHLUSS: 'Jahresabschluss',
@@ -53,10 +54,7 @@ export default async function EngagementsPage() {
             {engagements.length} {engagements.length === 1 ? 'Engagement' : 'Engagements'} gesamt
             {active.length > 0 && `, davon ${active.length} aktiv`}
           </p>
-          <Button className="bg-blue-700 hover:bg-blue-800" disabled>
-            <Plus className="h-4 w-4" />
-            Engagement anlegen
-          </Button>
+          <CreateEngagementDialog />
         </div>
 
         {/* Empty State */}
@@ -120,33 +118,35 @@ function EngagementCard({
   const status = statusConfig[engagement.status] || { label: engagement.status, variant: 'outline' as const };
 
   return (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer">
-      <CardContent className="flex items-center gap-4 py-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-          <Briefcase className="h-5 w-5 text-emerald-600" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-slate-900 truncate">{engagement.title}</h3>
-          <div className="flex items-center gap-3 mt-0.5">
-            <div className="flex items-center gap-1">
-              <Building2 className="h-3 w-3 text-slate-400" />
-              <span className="text-xs text-slate-500">{engagement.mandant.name}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-slate-400" />
-              <span className="text-xs text-slate-500">{engagement.fiscalYear}</span>
+    <Link href={`/engagements/${engagement.id}`}>
+      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <CardContent className="flex items-center gap-4 py-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+            <Briefcase className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-slate-900 truncate">{engagement.title}</h3>
+            <div className="flex items-center gap-3 mt-0.5">
+              <div className="flex items-center gap-1">
+                <Building2 className="h-3 w-3 text-slate-400" />
+                <span className="text-xs text-slate-500">{engagement.mandant.name}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-slate-400" />
+                <span className="text-xs text-slate-500">{engagement.fiscalYear}</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Badge variant="secondary">
-            {engagementTypeLabel[engagement.type] || engagement.type}
-          </Badge>
-          <Badge variant={status.variant}>
-            {status.label}
-          </Badge>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant="secondary">
+              {engagementTypeLabel[engagement.type] || engagement.type}
+            </Badge>
+            <Badge variant={status.variant}>
+              {status.label}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

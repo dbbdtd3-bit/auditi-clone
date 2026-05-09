@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { PbcItemStatus } from '@prisma/client';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { deleteObject } from '@/lib/obs';
 
@@ -100,7 +101,7 @@ export async function PUT(
       data: {
         ...(title !== undefined && { title }),
         ...(description !== undefined && { description }),
-        ...(status !== undefined && { status }),
+        ...(status !== undefined && { status: status as PbcItemStatus }),
         ...(assignedTo !== undefined && { assignedTo }),
         ...(parsedDueDate !== undefined && { dueDate: parsedDueDate }),
       },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { PbcRole } from '@prisma/client';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -86,7 +87,7 @@ export async function POST(
         data: {
           workspaceId,
           userId: dbUser.id,
-          role,
+          role: role as PbcRole,
         },
         include: { user: true },
       });

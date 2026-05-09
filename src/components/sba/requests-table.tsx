@@ -18,8 +18,8 @@ interface RequestRow {
   expectedBalance: unknown;
   currency: string;
   status: string;
-  sentAt: string | null;
-  respondedAt: string | null;
+  sentAt: Date | string | null;
+  respondedAt: Date | string | null;
   response: unknown | null;
 }
 

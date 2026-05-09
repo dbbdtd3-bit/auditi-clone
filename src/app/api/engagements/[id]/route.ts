@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { EngagementType, EngagementStatus } from '@prisma/client';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 
-const VALID_TYPES = ['JAHRESABSCHLUSS', 'SONDERPRUEFUNG', 'DUE_DILIGENCE'];
-const VALID_STATUSES = ['ACTIVE', 'COMPLETED', 'ARCHIVED'];
+const VALID_TYPES: EngagementType[] = ['JAHRESABSCHLUSS', 'SONDERPRUEFUNG', 'DUE_DILIGENCE'];
+const VALID_STATUSES: EngagementStatus[] = ['ACTIVE', 'COMPLETED', 'ARCHIVED'];
 
 export async function GET(
   _req: NextRequest,
@@ -66,8 +67,8 @@ export async function PUT(
       data: {
         ...(title !== undefined && { title }),
         ...(fiscalYear !== undefined && { fiscalYear: Number(fiscalYear) }),
-        ...(type !== undefined && { type }),
-        ...(status !== undefined && { status }),
+        ...(type !== undefined && { type: type as EngagementType }),
+        ...(status !== undefined && { status: status as EngagementStatus }),
       },
     });
 

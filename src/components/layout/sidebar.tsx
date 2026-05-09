@@ -48,8 +48,6 @@ const featureNav: NavItem[] = [
     label: 'Saldenbestätigungen',
     href: '/sba',
     icon: Mail,
-    disabled: true,
-    badge: 'Bald verfügbar',
   },
   {
     label: 'Dokumentenaustausch',

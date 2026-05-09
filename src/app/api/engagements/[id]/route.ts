@@ -3,8 +3,8 @@ import { prisma } from '@/lib/db';
 import { EngagementType, EngagementStatus } from '@prisma/client';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 
-const VALID_TYPES: EngagementType[] = ['JAHRESABSCHLUSS', 'SONDERPRUEFUNG', 'DUE_DILIGENCE'];
-const VALID_STATUSES: EngagementStatus[] = ['ACTIVE', 'COMPLETED', 'ARCHIVED'];
+const VALID_TYPES: string[] = ['JAHRESABSCHLUSS', 'SONDERPRUEFUNG', 'DUE_DILIGENCE'];
+const VALID_STATUSES: string[] = ['ACTIVE', 'COMPLETED', 'ARCHIVED'];
 
 export async function GET(
   _req: NextRequest,

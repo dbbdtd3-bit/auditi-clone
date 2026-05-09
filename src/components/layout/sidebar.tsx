@@ -64,8 +64,11 @@ interface SidebarProps {
   userRole?: string;
 }
 
+const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
+
 export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
   const pathname = usePathname();
+  const isWp = WP_ROLES.includes(userRole ?? '');
 
   const initials = userName
     ? userName
@@ -101,7 +104,7 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
         <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
           Übersicht
         </p>
-        {mainNav.map((item) => {
+        {mainNav.filter((item) => isWp || item.href === '/dashboard').map((item) => {
           const Icon = item.icon;
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + '/');

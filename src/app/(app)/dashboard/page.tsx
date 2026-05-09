@@ -2,25 +2,114 @@ import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EngagementOverview } from '@/components/dashboard/engagement-overview';
+import { CampaignKpis } from '@/components/dashboard/campaign-kpis';
+import { ResponseRateChart } from '@/components/dashboard/response-rate-chart';
 import {
   Building2,
   Briefcase,
   Mail,
   FolderOpen,
   TrendingUp,
+  BarChart3,
 } from 'lucide-react';
 
-async function getStats() {
+async function getDashboardData() {
   try {
-    const [mandanten, engagements, offeneSBA, offenePBC] = await Promise.all([
+    const [
+      mandantenCount,
+      engagementStats,
+      requestStats,
+      pbcStats,
+      recentEngagements,
+      campaignKpisRaw,
+    ] = await Promise.all([
       prisma.mandant.count(),
-      prisma.engagement.count({ where: { status: 'ACTIVE' } }),
-      prisma.confirmationRequest.count({ where: { status: 'SENT' } }),
-      prisma.pbcRequestItem.count({ where: { status: 'OPEN' } }),
+
+      prisma.engagement.groupBy({ by: ['status'], _count: { id: true } }),
+
+      prisma.confirmationRequest.groupBy({ by: ['status'], _count: { id: true } }),
+
+      prisma.pbcRequestItem.groupBy({ by: ['status'], _count: { id: true } }),
+
+      prisma.engagement.findMany({
+        where: { status: 'ACTIVE' },
+        take: 8,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          mandant: { select: { name: true } },
+          _count: { select: { campaigns: true } },
+        },
+      }),
+
+      prisma.confirmationCampaign.findMany({
+        where: { status: { in: ['ACTIVE', 'COMPLETED'] } },
+        take: 8,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          engagement: {
+            select: {
+              title: true,
+              mandant: { select: { name: true } },
+            },
+          },
+          requests: {
+            select: {
+              status: true,
+              response: { select: { hasDifference: true } },
+            },
+          },
+        },
+      }),
     ]);
-    return { mandanten, engagements, offeneSBA, offenePBC };
+
+    const toMap = (rows: { status: string; _count: { id: number } }[]) =>
+      Object.fromEntries(rows.map((r) => [r.status, r._count.id]));
+
+    const engMap = toMap(engagementStats);
+    const reqMap = toMap(requestStats);
+    const pbcMap = toMap(pbcStats);
+
+    const campaignKpis = campaignKpisRaw.map((c) => {
+      const total = c.requests.length;
+      const sent = c.requests.filter((r) =>
+        ['SENT', 'RESPONDED', 'CLOSED'].includes(r.status),
+      ).length;
+      const responded = c.requests.filter((r) =>
+        ['RESPONDED', 'CLOSED'].includes(r.status),
+      ).length;
+      const hasDifferences = c.requests.filter((r) => r.response?.hasDifference).length;
+      return {
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        engagementTitle: c.engagement.title,
+        mandantName: c.engagement.mandant.name,
+        total,
+        sent,
+        responded,
+        hasDifferences,
+        responseRate: sent > 0 ? Math.round((responded / sent) * 100) : 0,
+      };
+    });
+
+    return {
+      mandantenCount,
+      activeEngagements: engMap['ACTIVE'] ?? 0,
+      offeneSBA: reqMap['SENT'] ?? 0,
+      offenePBC: pbcMap['OPEN'] ?? 0,
+      recentEngagements,
+      campaignKpis,
+    };
   } catch {
-    return { mandanten: 0, engagements: 0, offeneSBA: 0, offenePBC: 0 };
+    return {
+      mandantenCount: 0,
+      activeEngagements: 0,
+      offeneSBA: 0,
+      offenePBC: 0,
+      recentEngagements: [],
+      campaignKpis: [],
+    };
   }
 }
 
@@ -52,7 +141,7 @@ function StatCard({ title, value, description, icon: Icon, iconColor, iconBg }: 
 
 export default async function DashboardPage() {
   const session = await auth();
-  const stats = await getStats();
+  const data = await getDashboardData();
 
   const userName = (session?.user as { name?: string })?.name || 'Benutzer';
   const hour = new Date().getHours();
@@ -79,11 +168,11 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* KPI Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Aktive Mandanten"
-            value={stats.mandanten}
+            value={data.mandantenCount}
             description="Mandanten in der Datenbank"
             icon={Building2}
             iconColor="text-blue-600"
@@ -91,7 +180,7 @@ export default async function DashboardPage() {
           />
           <StatCard
             title="Aktive Engagements"
-            value={stats.engagements}
+            value={data.activeEngagements}
             description="Laufende Prüfungsaufträge"
             icon={Briefcase}
             iconColor="text-emerald-600"
@@ -99,7 +188,7 @@ export default async function DashboardPage() {
           />
           <StatCard
             title="Offene Saldenbestätigungen"
-            value={stats.offeneSBA}
+            value={data.offeneSBA}
             description="Versandt, Antwort ausstehend"
             icon={Mail}
             iconColor="text-amber-600"
@@ -107,7 +196,7 @@ export default async function DashboardPage() {
           />
           <StatCard
             title="Ausstehende PBC-Items"
-            value={stats.offenePBC}
+            value={data.offenePBC}
             description="Dokumente noch nicht hochgeladen"
             icon={FolderOpen}
             iconColor="text-violet-600"
@@ -115,46 +204,54 @@ export default async function DashboardPage() {
           />
         </div>
 
-        {/* Coming soon modules */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="border-dashed border-slate-300 bg-slate-50/50">
-            <CardHeader>
+        {/* Main Content: Engagement Overview + Campaign KPIs */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-slate-400" />
-                <CardTitle className="text-sm font-medium text-slate-500">
-                  Saldenbestätigungen (SBA)
+                <Briefcase className="h-4 w-4 text-slate-500" />
+                <CardTitle className="text-sm font-semibold text-slate-700">
+                  Aktive Engagements
                 </CardTitle>
               </div>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-400">
-                Digitale Bestätigungsanfragen an Geschäftspartner versenden, verfolgen und auswerten.
-              </p>
-              <span className="mt-3 inline-block text-xs font-medium text-slate-400 bg-slate-200 px-2.5 py-1 rounded-full">
-                In Entwicklung
-              </span>
+            <CardContent className="pt-0">
+              <EngagementOverview engagements={data.recentEngagements} />
             </CardContent>
           </Card>
 
-          <Card className="border-dashed border-slate-300 bg-slate-50/50">
-            <CardHeader>
+          <Card>
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <FolderOpen className="h-5 w-5 text-slate-400" />
-                <CardTitle className="text-sm font-medium text-slate-500">
-                  Dokumentenaustausch (PBC)
+                <Mail className="h-4 w-4 text-slate-500" />
+                <CardTitle className="text-sm font-semibold text-slate-700">
+                  Kampagnen-KPIs
                 </CardTitle>
               </div>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-400">
-                Prepared-by-Client Listen erstellen, Dokumente anfordern und den Upload-Status überwachen.
-              </p>
-              <span className="mt-3 inline-block text-xs font-medium text-slate-400 bg-slate-200 px-2.5 py-1 rounded-full">
-                In Entwicklung
-              </span>
+            <CardContent className="pt-0">
+              <CampaignKpis data={data.campaignKpis} />
             </CardContent>
           </Card>
         </div>
+
+        {/* Response Rate Chart */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-slate-500" />
+              <CardTitle className="text-sm font-semibold text-slate-700">
+                Rücklaufquote nach Kampagne
+              </CardTitle>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Anteil der eingegangenen Antworten an den versandten Anfragen
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ResponseRateChart data={data.campaignKpis} />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

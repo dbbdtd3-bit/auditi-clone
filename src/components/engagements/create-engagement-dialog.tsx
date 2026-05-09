@@ -45,8 +45,8 @@ export function CreateEngagementDialog() {
         .then((r) => r.json())
         .then((data) => {
           setMandanten(Array.isArray(data) ? data : []);
-          if (Array.isArray(data) && data.length > 0 && !form.mandantId) {
-            setForm((prev) => ({ ...prev, mandantId: data[0].id }));
+          if (Array.isArray(data) && data.length > 0) {
+            setForm((prev) => (prev.mandantId ? prev : { ...prev, mandantId: data[0].id }));
           }
         })
         .catch(() => setMandanten([]))

@@ -51,21 +51,21 @@ export async function POST(
       }
     }
 
-    const maxSortOrder = await prisma.pbcRequestItem.aggregate({
-      where: { listId },
-      _max: { sortOrder: true },
-    });
-
-    const sortOrder = (maxSortOrder._max.sortOrder ?? -1) + 1;
-
-    const item = await prisma.pbcRequestItem.create({
-      data: {
-        listId,
-        title,
-        description: description || null,
-        dueDate: parsedDueDate,
-        sortOrder,
-      },
+    const item = await prisma.$transaction(async (tx) => {
+      const maxSortOrder = await tx.pbcRequestItem.aggregate({
+        where: { listId },
+        _max: { sortOrder: true },
+      });
+      const sortOrder = (maxSortOrder._max.sortOrder ?? -1) + 1;
+      return tx.pbcRequestItem.create({
+        data: {
+          listId,
+          title,
+          description: description || null,
+          dueDate: parsedDueDate,
+          sortOrder,
+        },
+      });
     });
 
     return NextResponse.json(item, { status: 201 });

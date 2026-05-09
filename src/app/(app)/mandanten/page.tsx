@@ -1,10 +1,14 @@
 import { prisma } from '@/lib/db';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Building2, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { CreateMandantDialog } from '@/components/mandanten/create-mandant-dialog';
+
+const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
 
 async function getMandanten() {
   try {
@@ -22,6 +26,10 @@ async function getMandanten() {
 }
 
 export default async function MandantenPage() {
+  const session = await auth();
+  const role = (session?.user as { role?: string })?.role ?? '';
+  if (!WP_ROLES.includes(role)) redirect('/dashboard');
+
   const mandanten = await getMandanten();
 
   return (

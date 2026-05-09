@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/db';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +36,13 @@ async function getEngagements() {
   }
 }
 
+const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
+
 export default async function EngagementsPage() {
+  const session = await auth();
+  const role = (session?.user as { role?: string })?.role ?? '';
+  if (!WP_ROLES.includes(role)) redirect('/dashboard');
+
   const engagements = await getEngagements();
 
   const active = engagements.filter((e) => e.status === 'ACTIVE');

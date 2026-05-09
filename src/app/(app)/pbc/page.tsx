@@ -1,13 +1,19 @@
 import { prisma } from '@/lib/db';
+import { auth } from '@/lib/auth';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { FolderOpen, Building2, Briefcase } from 'lucide-react';
 import Link from 'next/link';
 
-async function getWorkspaces() {
+const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
+
+async function getWorkspaces(userId: string | undefined, isWp: boolean) {
   try {
     return await prisma.pbcWorkspace.findMany({
+      where: isWp
+        ? undefined
+        : { members: { some: { userId: userId ?? '' } } },
       include: {
         engagement: {
           include: { mandant: true },
@@ -22,7 +28,10 @@ async function getWorkspaces() {
 }
 
 export default async function PbcPage() {
-  const workspaces = await getWorkspaces();
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  const isWp = WP_ROLES.includes(user?.role ?? '');
+  const workspaces = await getWorkspaces(user?.id, isWp);
 
   return (
     <div>

@@ -9,8 +9,8 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // Allow public response portal
-  if (pathname.startsWith('/r/')) {
+  // Allow public response portal and its API
+  if (pathname.startsWith('/r/') || pathname.startsWith('/api/r/')) {
     return NextResponse.next();
   }
 

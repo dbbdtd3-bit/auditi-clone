@@ -1,13 +1,15 @@
 import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  auth: {
-    user: process.env.BREVO_LOGIN!,
-    pass: process.env.BREVO_SMTP_KEY!,
-  },
-});
+function createTransporter() {
+  return nodemailer.createTransport({
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    auth: {
+      user: process.env.BREVO_LOGIN!,
+      pass: process.env.BREVO_SMTP_KEY!,
+    },
+  });
+}
 
 export interface ConfirmationEmailData {
   to: string;
@@ -61,6 +63,15 @@ function buildConfirmationHtml(data: ConfirmationEmailData): string {
 }
 
 export async function sendConfirmationEmail(data: ConfirmationEmailData): Promise<void> {
+  if (!process.env.BREVO_SMTP_KEY) {
+    console.log('[email] BREVO nicht konfiguriert — E-Mail-Versand übersprungen', {
+      to: data.to,
+      subject: `Saldenbestätigung zum ${data.balanceDate} — Bitte um Rückmeldung`,
+    });
+    return;
+  }
+
+  const transporter = createTransporter();
   await transporter.sendMail({
     from: `"${data.kanzleiName}" <${process.env.BREVO_LOGIN}>`,
     to: data.to,
@@ -70,6 +81,15 @@ export async function sendConfirmationEmail(data: ConfirmationEmailData): Promis
 }
 
 export async function sendReminderEmail(data: ConfirmationEmailData): Promise<void> {
+  if (!process.env.BREVO_SMTP_KEY) {
+    console.log('[email] BREVO nicht konfiguriert — E-Mail-Versand übersprungen', {
+      to: data.to,
+      subject: `Erinnerung: Saldenbestätigung zum ${data.balanceDate} noch ausstehend`,
+    });
+    return;
+  }
+
+  const transporter = createTransporter();
   await transporter.sendMail({
     from: `"${data.kanzleiName}" <${process.env.BREVO_LOGIN}>`,
     to: data.to,

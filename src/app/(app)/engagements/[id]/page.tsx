@@ -11,8 +11,25 @@ import {
   FolderOpen,
   ArrowLeft,
   ExternalLink,
+  Mail,
 } from 'lucide-react';
 import Link from 'next/link';
+import { CreateCampaignDialog } from '@/components/sba/create-campaign-dialog';
+
+type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+
+const campaignStatusConfig: Record<
+  CampaignStatus,
+  {
+    label: string;
+    variant: 'default' | 'secondary' | 'outline' | 'success' | 'warning' | 'destructive';
+  }
+> = {
+  DRAFT: { label: 'Entwurf', variant: 'secondary' },
+  ACTIVE: { label: 'Aktiv', variant: 'default' },
+  COMPLETED: { label: 'Abgeschlossen', variant: 'success' },
+  ARCHIVED: { label: 'Archiviert', variant: 'outline' },
+};
 
 const engagementTypeLabel: Record<string, string> = {
   JAHRESABSCHLUSS: 'Jahresabschluss',
@@ -45,13 +62,28 @@ async function getEngagement(id: string) {
   }
 }
 
+async function getCampaigns(engagementId: string) {
+  try {
+    return await prisma.confirmationCampaign.findMany({
+      where: { engagementId },
+      include: { _count: { select: { requests: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch {
+    return [];
+  }
+}
+
 export default async function EngagementDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const engagement = await getEngagement(id);
+  const [engagement, campaigns] = await Promise.all([
+    getEngagement(id),
+    getCampaigns(id),
+  ]);
 
   if (!engagement) notFound();
 
@@ -160,6 +192,77 @@ export default async function EngagementDetailPage({
                 <p className="text-sm text-slate-500">Kein PBC-Workspace vorhanden.</p>
               </CardContent>
             </Card>
+          )}
+        </div>
+
+        {/* SBA - Saldenbestätigungen */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+              Saldenbestätigungen (SBA)
+            </h2>
+            <CreateCampaignDialog engagementId={engagement.id} />
+          </div>
+
+          {campaigns.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+                <Mail className="h-8 w-8 text-slate-300 mb-3" />
+                <p className="text-sm font-medium text-slate-600 mb-1">
+                  Noch keine SBA-Kampagnen vorhanden
+                </p>
+                <p className="text-xs text-slate-400">
+                  Erstellen Sie eine Kampagne, um Saldenbestätigungen zu versenden.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {campaigns.map((campaign) => {
+                const campStatus =
+                  campaignStatusConfig[campaign.status as CampaignStatus] ?? {
+                    label: campaign.status,
+                    variant: 'outline' as const,
+                  };
+                return (
+                  <Card key={campaign.id}>
+                    <CardContent className="flex items-center gap-4 py-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100">
+                        <Mail className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-slate-900 truncate">
+                          {campaign.title}
+                        </h3>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-xs text-slate-500">
+                            Stichtag:{' '}
+                            {new Date(campaign.balanceDate).toLocaleDateString('de-DE', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {campaign._count.requests}{' '}
+                            {campaign._count.requests === 1 ? 'Partner' : 'Partner'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <Badge variant={campStatus.variant}>{campStatus.label}</Badge>
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/campaigns/${campaign.id}`}>
+                            <ExternalLink className="h-4 w-4" />
+                            Öffnen
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

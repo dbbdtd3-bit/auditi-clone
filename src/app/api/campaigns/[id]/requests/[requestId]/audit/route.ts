@@ -28,7 +28,16 @@ export async function GET(
       orderBy: { createdAt: 'asc' },
     });
 
-    return NextResponse.json(events);
+    return NextResponse.json(
+      events.map((e) => ({
+        ...e,
+        meta:
+          e.meta && typeof e.meta === 'object' && !Array.isArray(e.meta)
+            ? e.meta
+            : null,
+        createdAt: e.createdAt.toISOString(),
+      }))
+    );
   } catch (error) {
     console.error('GET /api/campaigns/[id]/requests/[requestId]/audit error:', error);
     return NextResponse.json({ error: 'Interner Fehler' }, { status: 500 });

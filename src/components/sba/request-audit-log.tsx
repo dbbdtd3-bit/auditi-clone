@@ -54,7 +54,9 @@ function getEventConfig(event: string): EventConfig {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('de-DE', {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleString('de-DE', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -65,11 +67,14 @@ function formatDateTime(dateStr: string): string {
 
 function formatMeta(meta: Record<string, unknown> | null): string | null {
   if (!meta || Object.keys(meta).length === 0) return null;
-  // Render as key: value pairs, skipping internal IDs
   const skip = new Set(['campaignId', 'requestId']);
   const parts = Object.entries(meta)
     .filter(([k]) => !skip.has(k))
-    .map(([k, v]) => `${k}: ${String(v)}`);
+    .map(([k, v]) => {
+      const display =
+        typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v);
+      return `${k}: ${display}`;
+    });
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
@@ -152,7 +157,7 @@ export function RequestAuditLog({ campaignId, requestId, partnerName, onClose }:
             <div className="absolute left-[18px] top-2 bottom-2 w-px bg-slate-200" aria-hidden />
 
             <ol className="space-y-3">
-              {events.map((ev, idx) => {
+              {events.map((ev) => {
                 const cfg = getEventConfig(ev.event);
                 const Icon = cfg.icon;
                 const meta = formatMeta(ev.meta);
@@ -183,13 +188,6 @@ export function RequestAuditLog({ campaignId, requestId, partnerName, onClose }:
                         )}
                       </div>
                     </div>
-
-                    {/* Entry number (subtle) */}
-                    {idx === 0 && (
-                      <span className="shrink-0 mt-2 text-xs text-slate-300">
-                        #{events.length - idx}
-                      </span>
-                    )}
                   </li>
                 );
               })}

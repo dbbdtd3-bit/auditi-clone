@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ModalFileList } from './modal-file-list';
@@ -91,6 +92,10 @@ export function ItemDetailModal({ item: initialItem }: Props) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-4xl w-full p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col">
+        <VisuallyHidden>
+          <DialogTitle>{item.title}</DialogTitle>
+          <DialogDescription>Anforderung bearbeiten</DialogDescription>
+        </VisuallyHidden>
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 border-b shrink-0">
           <Badge variant={statusCfg.variant} className="shrink-0">{statusCfg.label}</Badge>

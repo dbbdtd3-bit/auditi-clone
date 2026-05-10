@@ -50,7 +50,7 @@ export function ItemRow({ item, listId, workspaceId, checked, onCheckedChange }:
   if (item.dueDate) {
     const days = differenceInDays(new Date(item.dueDate), new Date());
     if (days < 0) {
-      dueBadge = <span className="text-[10px] text-red-600 font-medium">vor {Math.abs(days)} Tagen fällig</span>;
+      dueBadge = <span className="text-[10px] text-red-600 font-medium">vor {Math.abs(days)} {Math.abs(days) === 1 ? 'Tag' : 'Tagen'} fällig</span>;
     } else if (days <= 7) {
       dueBadge = <span className="text-[10px] text-yellow-600 font-medium">diese Woche fällig</span>;
     }

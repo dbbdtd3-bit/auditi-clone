@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
+import { AssistantBubble } from '@/components/assistant/assistant-bubble';
 
 export default async function AppLayout({
   children,
@@ -32,6 +33,10 @@ export default async function AppLayout({
           {children}
         </main>
       </div>
+      <AssistantBubble
+        userId={user.id ?? ''}
+        userRole={user.role ?? ''}
+      />
     </div>
   );
 }

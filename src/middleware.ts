@@ -14,6 +14,11 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // Allow public registration page and API
+  if (pathname === '/register' || pathname === '/api/register') {
+    return NextResponse.next();
+  }
+
   // Allow login page
   if (pathname === '/login') {
     // Already logged in → redirect to dashboard

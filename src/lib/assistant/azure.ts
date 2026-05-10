@@ -27,11 +27,20 @@ export type AzureTool = {
 const ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT ?? '';
 const API_KEY = process.env.AZURE_OPENAI_API_KEY ?? '';
 const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT ?? 'gpt-4o';
-const API_VERSION = process.env.AZURE_OPENAI_API_VERSION ?? '2024-10-21';
+const API_VERSION = process.env.AZURE_OPENAI_API_VERSION ?? '2025-04-01-preview';
+export const WHISPER_DEPLOYMENT = process.env.AZURE_WHISPER_DEPLOYMENT ?? '';
+
+function endpointOrigin(): string {
+  if (!ENDPOINT) return '';
+  try {
+    return new URL(ENDPOINT).origin;
+  } catch {
+    return ENDPOINT.split('/openai')[0].replace(/\/$/, '');
+  }
+}
 
 function chatUrl() {
-  const base = ENDPOINT.endsWith('/') ? ENDPOINT.slice(0, -1) : ENDPOINT;
-  return `${base}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=${API_VERSION}`;
+  return `${endpointOrigin()}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=${API_VERSION}`;
 }
 
 export type StreamChunk =

@@ -1,5 +1,6 @@
 import { ShieldCheck } from 'lucide-react';
 import { LoginForm } from '@/components/auth/login-form';
+import Link from 'next/link';
 
 export default function LoginPage() {
   return (
@@ -28,6 +29,13 @@ export default function LoginPage() {
             </div>
 
             <LoginForm />
+
+            <p className="mt-6 text-center text-sm text-slate-500">
+              Noch kein Konto?{' '}
+              <Link href="/register" className="text-blue-700 hover:underline font-medium">
+                Registrieren
+              </Link>
+            </p>
           </div>
         </div>
 

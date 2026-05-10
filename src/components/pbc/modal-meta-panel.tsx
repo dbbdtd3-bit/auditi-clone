@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { NativeSelect as Select } from '@/components/ui/select';
 import { DueDatePopover } from './due-date-popover';
 import { Badge } from '@/components/ui/badge';
 

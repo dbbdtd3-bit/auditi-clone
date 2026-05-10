@@ -15,7 +15,7 @@ export default function LoginPage() {
                 <ShieldCheck className="h-7 w-7 text-white" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Auditi</h1>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Dataly</h1>
             <p className="mt-1 text-slate-400 text-sm">Prüfungsplattform für WP &amp; StB</p>
           </div>
 
@@ -40,7 +40,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          &copy; {new Date().getFullYear()} Auditi &mdash; Vertraulich &amp; sicher
+          &copy; {new Date().getFullYear()} Dataly &mdash; Vertraulich &amp; sicher
         </p>
       </div>
     </div>

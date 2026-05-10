@@ -93,7 +93,7 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
           <ShieldCheck className="h-5 w-5 text-white" />
         </div>
         <div>
-          <p className="text-base font-bold tracking-tight text-white">Auditi</p>
+          <p className="text-base font-bold tracking-tight text-white">Dataly</p>
           <p className="text-[10px] text-slate-400 leading-none mt-0.5">Prüfungsplattform</p>
         </div>
       </div>

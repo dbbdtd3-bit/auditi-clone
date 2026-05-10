@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { prisma } from './db';
 import bcrypt from 'bcryptjs';
+import { recordAudit } from './audit';
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
@@ -38,6 +39,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.status === 'PENDING') {
           throw new Error('Ihr Konto wartet noch auf die Freischaltung durch den Administrator.');
         }
+
+        void recordAudit({ actorId: user.id, actorEmail: user.email, action: 'USER_LOGIN' });
 
         return {
           id: user.id,

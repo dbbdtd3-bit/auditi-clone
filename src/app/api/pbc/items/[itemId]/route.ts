@@ -4,6 +4,7 @@ import { PbcItemStatus } from '@prisma/client';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { deleteObject } from '@/lib/obs';
 import { canAccessWorkspace, getItemContext } from '@/lib/pbc-access';
+import { recordAudit } from '@/lib/audit';
 
 const VALID_STATUSES: string[] = ['OPEN', 'UPLOADED', 'ACCEPTED', 'NEEDS_REVISION', 'REJECTED'];
 
@@ -92,10 +93,10 @@ export async function PUT(
       }
     }
 
-    const item = await prisma.$transaction(async (tx) => {
+    const { item, prevSnapshot } = await prisma.$transaction(async (tx) => {
       const current = await tx.pbcRequestItem.findUnique({
         where: { id: itemId },
-        select: { status: true, listId: true },
+        select: { status: true, listId: true, assignedTo: true, dueDate: true, title: true, description: true },
       });
       if (!current) throw new Error('NOT_FOUND');
 
@@ -122,7 +123,17 @@ export async function PUT(
         },
       });
 
-      return updated;
+      return { item: updated, prevSnapshot: current };
+    });
+
+    const isStatusChange = status !== undefined && status !== prevSnapshot.status;
+    void recordAudit({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: isStatusChange ? 'PBC_ITEM_STATUS_CHANGED' : 'PBC_ITEM_UPDATED',
+      entityType: 'PbcRequestItem',
+      entityId: itemId,
+      prevState: prevSnapshot,
     });
 
     return NextResponse.json(item);

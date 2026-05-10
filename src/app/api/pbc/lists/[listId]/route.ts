@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { deleteObject } from '@/lib/obs';
 import { canAccessWorkspace, getListWorkspaceId } from '@/lib/pbc-access';
+import { recordAudit } from '@/lib/audit';
 
 export async function GET(
   _req: NextRequest,
@@ -83,12 +84,30 @@ export async function DELETE(
 
     const { listId } = await params;
 
-    const files = await prisma.pbcFile.findMany({
-      where: { item: { listId } },
-      select: { obsKey: true },
-    });
+    const [listInfo, files, itemCount] = await Promise.all([
+      prisma.pbcRequestList.findUnique({
+        where: { id: listId },
+        select: { title: true, description: true, workspaceId: true },
+      }),
+      prisma.pbcFile.findMany({ where: { item: { listId } }, select: { obsKey: true } }),
+      prisma.pbcRequestItem.count({ where: { listId } }),
+    ]);
 
     await prisma.pbcRequestList.delete({ where: { id: listId } });
+
+    void recordAudit({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: 'PBC_LIST_DELETED',
+      entityType: 'PbcRequestList',
+      entityId: listId,
+      prevState: {
+        title: listInfo?.title,
+        description: listInfo?.description,
+        workspaceId: listInfo?.workspaceId,
+        itemCount,
+      },
+    });
 
     for (const file of files) {
       try {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { enqueueConfirmationEmail } from '@/lib/queue';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { recordAudit } from '@/lib/audit';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -56,6 +57,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       queued++;
     }
+
+    void recordAudit({
+      actorId: user.id,
+      actorEmail: user.email ?? undefined,
+      action: 'CAMPAIGN_SENT',
+      entityType: 'ConfirmationCampaign',
+      entityId: id,
+      details: { queued, title: campaign.title },
+    });
 
     return NextResponse.json({ queued });
   } catch (error) {

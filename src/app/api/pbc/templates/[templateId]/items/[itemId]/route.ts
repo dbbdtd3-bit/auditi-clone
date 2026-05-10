@@ -2,41 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ templateId: string }> }
-) {
-  try {
-    const user = await getAuthUser();
-    if (!user) return unauthorized();
-    if (!isWpUser(user)) return forbidden();
-
-    const { templateId } = await params;
-
-    const template = await prisma.pbcTemplate.findUnique({
-      where: { id: templateId },
-      include: { items: { orderBy: { sortOrder: 'asc' } } },
-    });
-
-    if (!template) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
-
-    return NextResponse.json(template);
-  } catch (error) {
-    console.error('GET /api/pbc/templates/[templateId] error:', error);
-    return NextResponse.json({ error: 'Interner Fehler' }, { status: 500 });
-  }
-}
-
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ templateId: string }> }
+  { params }: { params: Promise<{ templateId: string; itemId: string }> }
 ) {
   try {
     const user = await getAuthUser();
     if (!user) return unauthorized();
     if (!isWpUser(user)) return forbidden();
 
-    const { templateId } = await params;
+    const { templateId, itemId } = await params;
 
     const template = await prisma.pbcTemplate.findUnique({
       where: { id: templateId },
@@ -46,38 +21,38 @@ export async function PUT(
     if (template.isBuiltIn) return NextResponse.json({ error: 'Eingebaute Vorlagen sind schreibgeschützt' }, { status: 403 });
 
     const body = await req.json();
-    const { name, description, category } = body as {
-      name?: string;
+    const { title, description, sortOrder } = body as {
+      title?: string;
       description?: string;
-      category?: string;
+      sortOrder?: number;
     };
 
-    const updated = await prisma.pbcTemplate.update({
-      where: { id: templateId },
+    const item = await prisma.pbcTemplateItem.update({
+      where: { id: itemId, templateId },
       data: {
-        ...(name !== undefined && { name: name.trim() }),
+        ...(title !== undefined && { title: title.trim() }),
         ...(description !== undefined && { description: description?.trim() || null }),
-        ...(category !== undefined && { category: category.trim() }),
+        ...(sortOrder !== undefined && { sortOrder }),
       },
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(item);
   } catch (error) {
-    console.error('PUT /api/pbc/templates/[templateId] error:', error);
+    console.error('PUT /api/pbc/templates/[templateId]/items/[itemId] error:', error);
     return NextResponse.json({ error: 'Interner Fehler' }, { status: 500 });
   }
 }
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ templateId: string }> }
+  { params }: { params: Promise<{ templateId: string; itemId: string }> }
 ) {
   try {
     const user = await getAuthUser();
     if (!user) return unauthorized();
     if (!isWpUser(user)) return forbidden();
 
-    const { templateId } = await params;
+    const { templateId, itemId } = await params;
 
     const template = await prisma.pbcTemplate.findUnique({
       where: { id: templateId },
@@ -86,11 +61,11 @@ export async function DELETE(
     if (!template) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     if (template.isBuiltIn) return NextResponse.json({ error: 'Eingebaute Vorlagen sind schreibgeschützt' }, { status: 403 });
 
-    await prisma.pbcTemplate.delete({ where: { id: templateId } });
+    await prisma.pbcTemplateItem.delete({ where: { id: itemId, templateId } });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('DELETE /api/pbc/templates/[templateId] error:', error);
+    console.error('DELETE /api/pbc/templates/[templateId]/items/[itemId] error:', error);
     return NextResponse.json({ error: 'Interner Fehler' }, { status: 500 });
   }
 }

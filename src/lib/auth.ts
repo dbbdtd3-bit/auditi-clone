@@ -32,6 +32,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!valid) return null;
 
+        if (user.status === 'DISABLED') {
+          throw new Error('Ihr Konto wurde deaktiviert. Bitte wenden Sie sich an den Administrator.');
+        }
+        if (user.status === 'PENDING') {
+          throw new Error('Ihr Konto wartet noch auf die Freischaltung durch den Administrator.');
+        }
+
         return {
           id: user.id,
           email: user.email,

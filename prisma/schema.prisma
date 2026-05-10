@@ -8,27 +8,103 @@ datasource db {
 }
 
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
+  id           String            @id @default(cuid())
+  email        String            @unique
   name         String
-  role         Role        @default(WP_TEAM)
+  role         Role              @default(WP_TEAM)
+  status       UserStatus        @default(ACTIVE)
+  kind         UserKind          @default(WP)
   passwordHash String?
-  createdAt    DateTime    @default(now())
-  mandant      Mandant?    @relation(fields: [mandantId], references: [id])
+  createdAt    DateTime          @default(now())
+  mandant      Mandant?          @relation(fields: [mandantId], references: [id])
   mandantId    String?
   pbcMembers   PbcMember[]
+  teams        TeamMember[]
+  mandanten    UserMandant[]
+  threads      AssistantThread[]
 }
 
 model Mandant {
-  id          String       @id @default(cuid())
+  id          String        @id @default(cuid())
   name        String
   legalName   String?
   taxId       String?
   address     Json
   logoUrl     String?
   users       User[]
+  userLinks   UserMandant[]
   engagements Engagement[]
+  createdAt   DateTime      @default(now())
+}
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  accentColor TeamColor    @default(BLUE)
+  members     TeamMember[]
   createdAt   DateTime     @default(now())
+}
+
+model TeamMember {
+  id     String @id @default(cuid())
+  teamId String
+  userId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model UserMandant {
+  userId    String
+  mandantId String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mandant   Mandant @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+
+  @@id([userId, mandantId])
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String?
+  entityId   String?
+  details    Json?
+  prevState  Json?
+  undone     Boolean   @default(false)
+  undoneAt   DateTime?
+  undoneById String?
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([action])
+}
+
+model AssistantThread {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?
+  messages  AssistantMessage[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model AssistantMessage {
+  id        String          @id @default(cuid())
+  threadId  String
+  thread    AssistantThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      String
+  content   Json
+  toolCalls Json?
+  createdAt DateTime        @default(now())
+
+  @@index([threadId, createdAt])
 }
 
 model Engagement {
@@ -250,6 +326,26 @@ enum Role {
   WP_TEAM
   MANDANT_ADMIN
   MANDANT_USER
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
+enum UserKind {
+  WP
+  CLIENT
+}
+
+enum TeamColor {
+  BLUE
+  RED
+  PURPLE
+  YELLOW
+  ORANGE
+  GREEN
 }
 
 enum PbcRole {

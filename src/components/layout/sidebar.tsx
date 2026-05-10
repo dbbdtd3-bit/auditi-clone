@@ -10,6 +10,7 @@ import {
   FolderOpen,
   LogOut,
   ShieldCheck,
+  Settings,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
@@ -177,6 +178,28 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* Settings */}
+      <div className="px-3 pb-2">
+        <Separator className="mb-3 bg-slate-700" />
+        {(() => {
+          const isActive = pathname === '/settings' || pathname.startsWith('/settings/');
+          return (
+            <Link
+              href="/settings"
+              className={cn(
+                'flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              )}
+            >
+              <Settings className="h-4 w-4 shrink-0" />
+              Einstellungen
+            </Link>
+          );
+        })()}
+      </div>
 
       {/* User Footer */}
       <div className="border-t border-slate-700 p-3">

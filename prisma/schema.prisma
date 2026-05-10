@@ -8,13 +8,13 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String      @id @default(cuid())
+  email        String      @unique
   name         String
-  role         Role      @default(WP_TEAM)
+  role         Role        @default(WP_TEAM)
   passwordHash String?
-  createdAt    DateTime  @default(now())
-  mandant      Mandant?  @relation(fields: [mandantId], references: [id])
+  createdAt    DateTime    @default(now())
+  mandant      Mandant?    @relation(fields: [mandantId], references: [id])
   mandantId    String?
   pbcMembers   PbcMember[]
 }
@@ -128,6 +128,9 @@ model PbcMember {
   user        User         @relation(fields: [userId], references: [id])
   userId      String
   role        PbcRole
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
 }
 
 model PbcRequestList {
@@ -135,14 +138,20 @@ model PbcRequestList {
   workspace    PbcWorkspace     @relation(fields: [workspaceId], references: [id])
   workspaceId  String
   title        String
+  description  String?
   fromTemplate String?
+  sortOrder    Int              @default(0)
   items        PbcRequestItem[]
+  comments     PbcListComment[]
+  activities   PbcActivity[]
   createdAt    DateTime         @default(now())
+
+  @@index([workspaceId, sortOrder])
 }
 
 model PbcRequestItem {
   id          String          @id @default(cuid())
-  list        PbcRequestList  @relation(fields: [listId], references: [id])
+  list        PbcRequestList  @relation(fields: [listId], references: [id], onDelete: Cascade)
   listId      String
   title       String
   description String?
@@ -152,11 +161,17 @@ model PbcRequestItem {
   files       PbcFile[]
   comments    PbcComment[]
   sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([listId, sortOrder])
+  @@index([listId, status])
+  @@index([dueDate])
 }
 
 model PbcFile {
   id         String         @id @default(cuid())
-  item       PbcRequestItem @relation(fields: [itemId], references: [id])
+  item       PbcRequestItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   itemId     String
   filename   String
   obsKey     String
@@ -165,16 +180,48 @@ model PbcFile {
   uploadedBy String
   virusScan  String         @default("PENDING")
   createdAt  DateTime       @default(now())
+
+  @@index([itemId])
 }
 
 model PbcComment {
   id        String         @id @default(cuid())
-  item      PbcRequestItem @relation(fields: [itemId], references: [id])
+  item      PbcRequestItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   itemId    String
   author    String
   role      String
   text      String
   createdAt DateTime       @default(now())
+
+  @@index([itemId, createdAt])
+}
+
+model PbcListComment {
+  id        String         @id @default(cuid())
+  list      PbcRequestList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  listId    String
+  author    String
+  authorId  String?
+  role      String
+  text      String
+  createdAt DateTime       @default(now())
+
+  @@index([listId, createdAt])
+}
+
+model PbcActivity {
+  id        String         @id @default(cuid())
+  list      PbcRequestList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  listId    String
+  itemId    String?
+  event     String
+  actor     String?
+  actorId   String?
+  meta      Json?
+  createdAt DateTime       @default(now())
+
+  @@index([listId, createdAt])
+  @@index([itemId])
 }
 
 model PbcTemplate {
@@ -194,6 +241,8 @@ model PbcTemplateItem {
   title       String
   description String?
   sortOrder   Int         @default(0)
+
+  @@index([templateId, sortOrder])
 }
 
 enum Role {
@@ -243,4 +292,5 @@ enum PbcItemStatus {
   UPLOADED
   ACCEPTED
   NEEDS_REVISION
+  REJECTED
 }

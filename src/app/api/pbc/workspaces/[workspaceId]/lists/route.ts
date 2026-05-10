@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
-
-async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
-  if (isWp) return true;
-  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
-  return member !== null;
-}
+import { canAccessWorkspace } from '@/lib/pbc-access';
 
 export async function GET(
   _req: NextRequest,

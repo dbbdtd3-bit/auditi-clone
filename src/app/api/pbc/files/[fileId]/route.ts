@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { getPresignedDownload, deleteObject } from '@/lib/obs';
-
-async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
-  if (isWp) return true;
-  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
-  return member !== null;
-}
+import { canAccessWorkspace, getFileContext } from '@/lib/pbc-access';
 
 export async function GET(
   _req: NextRequest,
@@ -19,25 +14,17 @@ export async function GET(
 
     const { fileId } = await params;
 
-    const file = await prisma.pbcFile.findUnique({
-      where: { id: fileId },
-      select: { obsKey: true, item: { select: { list: { select: { workspaceId: true } } } } },
-    });
-    if (!file) {
-      return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
-    }
+    const ctx = await getFileContext(fileId);
+    if (!ctx) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
 
-    const workspaceId = file.item.list.workspaceId;
-    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
+    if (!await canAccessWorkspace(user.id, isWpUser(user), ctx.workspaceId)) return forbidden();
 
-    const fullFile = await prisma.pbcFile.findUnique({ where: { id: fileId } });
-    if (!fullFile) {
-      return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
-    }
+    const file = await prisma.pbcFile.findUnique({ where: { id: fileId } });
+    if (!file) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
 
-    const downloadUrl = await getPresignedDownload(fullFile.obsKey);
+    const downloadUrl = await getPresignedDownload(file.obsKey);
 
-    return NextResponse.json({ ...fullFile, downloadUrl });
+    return NextResponse.json({ ...file, downloadUrl });
   } catch (error) {
     console.error('GET /api/pbc/files/[fileId] error:', error);
     return NextResponse.json({ error: 'Interner Fehler' }, { status: 500 });
@@ -55,12 +42,28 @@ export async function DELETE(
 
     const { fileId } = await params;
 
-    const file = await prisma.pbcFile.findUnique({ where: { id: fileId } });
-    if (!file) {
-      return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
-    }
+    const ctx = await getFileContext(fileId);
+    if (!ctx) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
 
-    await prisma.pbcFile.delete({ where: { id: fileId } });
+    const file = await prisma.pbcFile.findUnique({
+      where: { id: fileId },
+      select: { obsKey: true, filename: true },
+    });
+    if (!file) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pbcFile.delete({ where: { id: fileId } });
+      await tx.pbcActivity.create({
+        data: {
+          listId: ctx.listId,
+          itemId: ctx.itemId,
+          event: 'FILE_DELETED',
+          actor: user.name || 'Unbekannt',
+          actorId: user.id,
+          meta: { filename: file.filename },
+        },
+      });
+    });
 
     try {
       await deleteObject(file.obsKey);

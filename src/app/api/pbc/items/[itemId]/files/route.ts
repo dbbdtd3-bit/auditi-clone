@@ -2,22 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { getPresignedDownload } from '@/lib/obs';
+import { canAccessWorkspace, getItemContext } from '@/lib/pbc-access';
 
 const OBS_KEY_PATTERN = /^pbc\/\d+-[a-zA-Z0-9._-]+$/;
-
-async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
-  if (isWp) return true;
-  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
-  return member !== null;
-}
-
-async function getItemWorkspaceId(itemId: string): Promise<string | null> {
-  const item = await prisma.pbcRequestItem.findUnique({
-    where: { id: itemId },
-    select: { list: { select: { workspaceId: true } } },
-  });
-  return item?.list?.workspaceId ?? null;
-}
 
 export async function GET(
   _req: NextRequest,
@@ -29,10 +16,10 @@ export async function GET(
 
     const { itemId } = await params;
 
-    const workspaceId = await getItemWorkspaceId(itemId);
-    if (!workspaceId) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    const ctx = await getItemContext(itemId);
+    if (!ctx) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
 
-    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
+    if (!await canAccessWorkspace(user.id, isWpUser(user), ctx.workspaceId)) return forbidden();
 
     const files = await prisma.pbcFile.findMany({
       where: { itemId },
@@ -67,10 +54,10 @@ export async function POST(
 
     const { itemId } = await params;
 
-    const workspaceId = await getItemWorkspaceId(itemId);
-    if (!workspaceId) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    const ctx = await getItemContext(itemId);
+    if (!ctx) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
 
-    if (!await canAccessWorkspace(user.id, isWpUser(user), workspaceId)) return forbidden();
+    if (!await canAccessWorkspace(user.id, isWpUser(user), ctx.workspaceId)) return forbidden();
 
     const body = await req.json();
     const { filename, obsKey, mimeType, sizeBytes } = body as {
@@ -109,6 +96,17 @@ export async function POST(
           data: { status: 'UPLOADED' },
         });
       }
+
+      await tx.pbcActivity.create({
+        data: {
+          listId: ctx.listId,
+          itemId,
+          event: 'FILE_UPLOADED',
+          actor: uploadedBy,
+          actorId: user.id,
+          meta: { filename, sizeBytes: Number(sizeBytes) },
+        },
+      });
 
       return created;
     });

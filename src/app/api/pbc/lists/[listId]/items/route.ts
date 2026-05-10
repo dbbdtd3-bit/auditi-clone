@@ -1,20 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
-
-async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
-  if (isWp) return true;
-  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
-  return member !== null;
-}
-
-async function getListWorkspaceId(listId: string): Promise<string | null> {
-  const list = await prisma.pbcRequestList.findUnique({
-    where: { id: listId },
-    select: { workspaceId: true },
-  });
-  return list?.workspaceId ?? null;
-}
+import { canAccessWorkspace, getListWorkspaceId } from '@/lib/pbc-access';
 
 export async function POST(
   req: NextRequest,
@@ -57,7 +44,7 @@ export async function POST(
         _max: { sortOrder: true },
       });
       const sortOrder = (maxSortOrder._max.sortOrder ?? -1) + 1;
-      return tx.pbcRequestItem.create({
+      const created = await tx.pbcRequestItem.create({
         data: {
           listId,
           title,
@@ -66,6 +53,19 @@ export async function POST(
           sortOrder,
         },
       });
+
+      await tx.pbcActivity.create({
+        data: {
+          listId,
+          itemId: created.id,
+          event: 'ITEM_CREATED',
+          actor: user.name || 'Unbekannt',
+          actorId: user.id,
+          meta: { title },
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json(item, { status: 201 });

@@ -2,20 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { deleteObject } from '@/lib/obs';
-
-async function canAccessWorkspace(userId: string, isWp: boolean, workspaceId: string): Promise<boolean> {
-  if (isWp) return true;
-  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
-  return member !== null;
-}
-
-async function getListWorkspaceId(listId: string): Promise<string | null> {
-  const list = await prisma.pbcRequestList.findUnique({
-    where: { id: listId },
-    select: { workspaceId: true },
-  });
-  return list?.workspaceId ?? null;
-}
+import { canAccessWorkspace, getListWorkspaceId } from '@/lib/pbc-access';
 
 export async function GET(
   _req: NextRequest,
@@ -41,6 +28,8 @@ export async function GET(
           },
           orderBy: { sortOrder: 'asc' },
         },
+        comments: { orderBy: { createdAt: 'asc' } },
+        activities: { orderBy: { createdAt: 'desc' }, take: 5 },
       },
     });
 
@@ -66,11 +55,14 @@ export async function PUT(
 
     const { listId } = await params;
     const body = await req.json();
-    const { title } = body as { title?: string };
+    const { title, description } = body as { title?: string; description?: string };
 
     const list = await prisma.pbcRequestList.update({
       where: { id: listId },
-      data: { ...(title !== undefined && { title }) },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description }),
+      },
     });
 
     return NextResponse.json(list);

@@ -4,26 +4,68 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --dataly-navy: #0b2d5c;
+    --dataly-blue: #1e63e9;
+    --dataly-teal: #0f766e;
+    --dataly-paper: #f5f7fa;
+    --dataly-surface: #ffffff;
+    --dataly-surface-subtle: #f8fafc;
+    --dataly-line: #d9e2ec;
+    --dataly-line-strong: #b8c7d9;
+    --dataly-ink: #102033;
+    --dataly-slate: #53657a;
+    --dataly-muted: #7a8a9e;
+    --dataly-success: #16865a;
+    --dataly-success-soft: #e8f6ef;
+    --dataly-warning: #b7791f;
+    --dataly-warning-soft: #fff4d6;
+    --dataly-danger: #c2413d;
+    --dataly-danger-soft: #fdebec;
+    --dataly-info: #0369a1;
+    --dataly-info-soft: #e7f2ff;
+    --dataly-navy-rgb: 11 45 92;
+    --dataly-blue-rgb: 30 99 233;
+    --dataly-teal-rgb: 15 118 110;
+    --dataly-paper-rgb: 245 247 250;
+    --dataly-surface-rgb: 255 255 255;
+    --dataly-surface-subtle-rgb: 248 250 252;
+    --dataly-line-rgb: 217 226 236;
+    --dataly-line-strong-rgb: 184 199 217;
+    --dataly-ink-rgb: 16 32 51;
+    --dataly-slate-rgb: 83 101 122;
+    --dataly-muted-rgb: 122 138 158;
+    --dataly-success-rgb: 22 134 90;
+    --dataly-success-soft-rgb: 232 246 239;
+    --dataly-warning-rgb: 183 121 31;
+    --dataly-warning-soft-rgb: 255 244 214;
+    --dataly-danger-rgb: 194 65 61;
+    --dataly-danger-soft-rgb: 253 235 236;
+    --dataly-info-rgb: 3 105 161;
+    --dataly-info-soft-rgb: 231 242 255;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+
+    --background: 210 33% 97%;
+    --foreground: 211 52% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 211 52% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --popover-foreground: 211 52% 13%;
+    --primary: 221 82% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 98%;
+    --secondary-foreground: 211 52% 13%;
+    --muted: 210 40% 98%;
+    --muted-foreground: 211 19% 40%;
+    --accent: 210 40% 98%;
+    --accent-foreground: 211 52% 13%;
+    --destructive: 2 53% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 211 36% 89%;
+    --input: 211 36% 89%;
+    --ring: 221 82% 52%;
   }
 }
 
@@ -33,5 +75,11 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-variant-numeric: tabular-nums;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--dataly-blue) 18%, transparent);
   }
 }

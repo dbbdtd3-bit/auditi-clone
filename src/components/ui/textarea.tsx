@@ -8,7 +8,7 @@ export const Textarea = React.forwardRef<
   <textarea
     ref={ref}
     className={cn(
-      'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 resize-none',
+      'w-full rounded-md border border-dataly-line bg-white px-3 py-2 text-sm text-dataly-ink placeholder:text-dataly-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dataly-blue disabled:bg-dataly-surface-subtle disabled:opacity-70 resize-none',
       className
     )}
     {...props}

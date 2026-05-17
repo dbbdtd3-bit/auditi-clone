@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 import { getPresignedUpload } from '@/lib/obs';
-import { RequestStatus } from '@prisma/client';
+import { requireRespondablePublicToken } from '@/lib/public-response';
 
 interface RouteParams {
   params: Promise<{ token: string }>;
@@ -37,25 +36,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const request = await prisma.confirmationRequest.findUnique({
-      where: { publicToken: token },
-    });
-
-    if (!request) {
-      return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
-    }
-
-    const now = new Date();
-    if (request.tokenExpiresAt < now) {
-      return NextResponse.json({ error: 'Token abgelaufen', expired: true }, { status: 403 });
-    }
-
-    if (request.status !== RequestStatus.SENT && request.status !== RequestStatus.QUEUED) {
-      return NextResponse.json({ error: 'Diese Anfrage ist nicht aktiv' }, { status: 403 });
-    }
+    const access = await requireRespondablePublicToken(token);
+    if (!access.ok) return NextResponse.json(access.body, { status: access.status });
 
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const obsKey = `sba/${request.id}/${Date.now()}-${sanitizedFilename}`;
+    const obsKey = `sba/${access.request.id}/${Date.now()}-${sanitizedFilename}`;
 
     const uploadUrl = await getPresignedUpload(obsKey, mimeType, 300);
 

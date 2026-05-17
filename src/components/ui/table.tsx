@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
     <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
+      <table ref={ref} className={cn('w-full caption-bottom text-sm text-dataly-ink', className)} {...props} />
     </div>
   )
 );
@@ -32,7 +32,7 @@ const TableFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tfoot
     ref={ref}
-    className={cn('border-t bg-slate-50/50 font-medium [&>tr]:last:border-b-0', className)}
+    className={cn('border-t border-dataly-line bg-dataly-surface-subtle font-medium [&>tr]:last:border-b-0', className)}
     {...props}
   />
 ));
@@ -43,7 +43,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        'border-b border-slate-100 transition-colors hover:bg-slate-50/50 data-[state=selected]:bg-slate-100',
+        'border-b border-dataly-line transition-colors hover:bg-dataly-surface-subtle data-[state=selected]:bg-dataly-info-soft',
         className
       )}
       {...props}
@@ -59,7 +59,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      'h-10 px-4 text-left align-middle text-xs font-medium text-slate-500 uppercase tracking-wide [&:has([role=checkbox])]:pr-0',
+      'sticky top-0 z-10 h-11 bg-dataly-surface-subtle px-4 text-left align-middle text-xs font-semibold text-dataly-slate [&:has([role=checkbox])]:pr-0',
       className
     )}
     {...props}
@@ -73,7 +73,7 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn('px-4 py-3 align-middle [&:has([role=checkbox])]:pr-0', className)}
+    className={cn('h-11 px-4 py-2 align-middle [&:has([role=checkbox])]:pr-0', className)}
     {...props}
   />
 ));
@@ -83,7 +83,7 @@ const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (
-  <caption ref={ref} className={cn('mt-4 text-sm text-slate-500', className)} {...props} />
+  <caption ref={ref} className={cn('mt-4 text-sm text-dataly-slate', className)} {...props} />
 ));
 TableCaption.displayName = 'TableCaption';
 

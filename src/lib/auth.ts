@@ -1,8 +1,17 @@
 import NextAuth from 'next-auth';
+import { CredentialsSignin } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { prisma } from './db';
 import bcrypt from 'bcryptjs';
 import { recordAudit } from './audit';
+
+class PendingAccountError extends CredentialsSignin {
+  code = 'pending_account';
+}
+
+class DisabledAccountError extends CredentialsSignin {
+  code = 'disabled_account';
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
@@ -34,10 +43,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!valid) return null;
 
         if (user.status === 'DISABLED') {
-          throw new Error('Ihr Konto wurde deaktiviert. Bitte wenden Sie sich an den Administrator.');
+          throw new DisabledAccountError();
         }
         if (user.status === 'PENDING') {
-          throw new Error('Ihr Konto wartet noch auf die Freischaltung durch den Administrator.');
+          throw new PendingAccountError();
         }
 
         void recordAudit({ actorId: user.id, actorEmail: user.email, action: 'USER_LOGIN' });

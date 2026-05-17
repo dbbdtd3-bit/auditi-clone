@@ -26,7 +26,7 @@ function buildConfirmationHtml(data: ConfirmationEmailData): string {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
       <div style="background: #1e3a5f; padding: 24px 32px; border-radius: 8px 8px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">Auditi</h1>
+        <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">Dataly</h1>
         <p style="color: #a8c4e0; margin: 4px 0 0; font-size: 13px;">Prüfungsplattform</p>
       </div>
       <div style="background: #ffffff; padding: 32px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">

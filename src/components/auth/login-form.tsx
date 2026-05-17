@@ -7,6 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, AlertCircle } from 'lucide-react';
 
+const loginErrorCopy: Record<string, string> = {
+  pending_account: 'Ihr Konto wartet noch auf die Freischaltung durch einen Administrator.',
+  disabled_account: 'Ihr Konto wurde deaktiviert. Bitte wenden Sie sich an Ihren Administrator.',
+  credentials: 'E-Mail oder Passwort ist falsch. Bitte erneut versuchen.',
+};
+
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -27,7 +33,7 @@ export function LoginForm() {
       });
 
       if (result?.error) {
-        setError('E-Mail oder Passwort ist falsch. Bitte erneut versuchen.');
+        setError(loginErrorCopy[result.code ?? 'credentials'] ?? loginErrorCopy.credentials);
       } else {
         router.push('/dashboard');
         router.refresh();
@@ -42,14 +48,14 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="flex items-start gap-2.5 rounded-md bg-red-50 border border-red-200 p-3">
-          <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="flex items-start gap-2.5 rounded-md border border-dataly-danger/30 bg-dataly-danger-soft p-3">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-dataly-danger" />
+          <p className="text-sm text-dataly-danger">{error}</p>
         </div>
       )}
 
       <div className="space-y-1.5">
-        <label htmlFor="email" className="text-sm font-medium text-slate-700">
+        <label htmlFor="email" className="text-sm font-semibold text-dataly-ink">
           E-Mail-Adresse
         </label>
         <Input
@@ -66,7 +72,7 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="password" className="text-sm font-medium text-slate-700">
+        <label htmlFor="password" className="text-sm font-semibold text-dataly-ink">
           Passwort
         </label>
         <Input
@@ -83,7 +89,7 @@ export function LoginForm() {
 
       <Button
         type="submit"
-        className="w-full bg-blue-700 hover:bg-blue-800"
+        className="w-full"
         disabled={loading}
       >
         {loading ? (

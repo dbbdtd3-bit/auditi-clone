@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev --port 3100",
     "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck",
     "start": "next start -p 3100",
     "worker": "tsx src/worker/index.ts",
     "db:migrate": "prisma migrate dev",

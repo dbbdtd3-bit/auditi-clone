@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { getPublicPortalResult, requireRespondablePublicToken } from '@/lib/public-response';
 import { RequestStatus } from '@prisma/client';
 
 interface RouteParams {
@@ -10,67 +11,17 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { token } = await params;
 
   try {
-    const request = await prisma.confirmationRequest.findUnique({
-      where: { publicToken: token },
-      include: {
-        campaign: {
-          include: {
-            engagement: {
-              include: {
-                mandant: true,
-              },
-            },
-          },
-        },
-        response: true,
-      },
-    });
+    const result = await getPublicPortalResult(token);
 
-    if (!request) {
-      return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    if (result.state === 'form' || result.state === 'already_responded') {
+      return NextResponse.json(result.data);
     }
 
-    const now = new Date();
-
-    // Token abgelaufen
-    if (request.tokenExpiresAt < now) {
-      return NextResponse.json({ error: 'Token abgelaufen', expired: true }, { status: 403 });
-    }
-
-    // Noch nicht versendet
-    if (request.status === RequestStatus.DRAFT || request.status === RequestStatus.QUEUED) {
-      return NextResponse.json(
-        { error: 'Dieser Vorgang ist noch nicht aktiv' },
-        { status: 403 }
-      );
-    }
-
-    // Geschlossen
-    if (request.status === RequestStatus.CLOSED) {
-      return NextResponse.json(
-        { error: 'Dieser Vorgang ist abgeschlossen' },
-        { status: 403 }
-      );
-    }
-
-    const alreadyResponded =
-      request.status === RequestStatus.RESPONDED || request.response !== null;
-
-    const data = {
-      id: request.id,
-      partnerName: request.partnerName,
-      partnerEmail: request.partnerEmail,
-      accountNumber: request.accountNumber,
-      expectedBalance: request.expectedBalance.toString(),
-      currency: request.currency,
-      balanceDate: request.campaign.balanceDate.toISOString(),
-      kanzleiName: request.campaign.engagement.mandant.name,
-      tokenExpiresAt: request.tokenExpiresAt.toISOString(),
-      status: request.status,
-      alreadyResponded,
-    };
-
-    return NextResponse.json(data);
+    const status = result.state === 'not_found' ? 404 : result.state === 'error' ? 500 : 403;
+    return NextResponse.json(
+      { error: result.message, expired: result.state === 'expired', state: result.state },
+      { status }
+    );
   } catch (error) {
     console.error('GET /api/r/[token] error:', error);
     return NextResponse.json({ error: 'Interner Fehler' }, { status: 500 });
@@ -92,36 +43,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const request = await prisma.confirmationRequest.findUnique({
-      where: { publicToken: token },
-      include: { response: true },
-    });
-
-    if (!request) {
-      return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
-    }
-
-    // Bereits beantwortet
-    if (request.response !== null || request.status === RequestStatus.RESPONDED) {
-      return NextResponse.json(
-        { error: 'Diese Anfrage wurde bereits beantwortet' },
-        { status: 409 }
-      );
-    }
-
-    // Token abgelaufen
     const now = new Date();
-    if (request.tokenExpiresAt < now) {
-      return NextResponse.json({ error: 'Token abgelaufen', expired: true }, { status: 403 });
-    }
+    const access = await requireRespondablePublicToken(token, now);
+    if (!access.ok) return NextResponse.json(access.body, { status: access.status });
 
-    // Status muss SENT oder QUEUED sein
-    if (request.status !== RequestStatus.SENT && request.status !== RequestStatus.QUEUED) {
-      return NextResponse.json(
-        { error: 'Diese Anfrage ist nicht aktiv' },
-        { status: 403 }
-      );
-    }
+    const { request } = access;
 
     // IP-Adresse
     const forwarded = req.headers.get('x-forwarded-for');

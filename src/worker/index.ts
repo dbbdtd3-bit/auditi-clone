@@ -67,7 +67,7 @@ new Worker(
   { connection }
 );
 
-console.log('Auditi Worker gestartet — Queue: email-dispatch');
+console.log('Dataly Worker gestartet — Queue: email-dispatch');
 
 process.on('SIGTERM', async () => {
   console.log('Worker shutting down...');

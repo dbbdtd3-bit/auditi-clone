@@ -30,7 +30,7 @@ export function StatusCounters({ counts }: StatusCountersProps) {
       {STATUS_CONFIG.map(({ key, label, dotClass }) => (
         <div key={key} className="flex items-center gap-2 text-xs">
           <span className={`h-2 w-2 rounded-full shrink-0 ${dotClass}`} />
-          <span className="flex-1 text-slate-600">{label}</span>
+          <span className="text-slate-600">{label}</span>
           <span className="font-medium text-slate-800 tabular-nums">{counts[key]}</span>
         </div>
       ))}

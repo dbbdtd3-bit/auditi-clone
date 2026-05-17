@@ -67,7 +67,7 @@ export function ModalMetaPanel({ item, onUpdated }: Props) {
         </Select>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-3">
         <Label className="text-xs text-slate-500">Frist</Label>
         <DueDatePopover
           value={item.dueDate ? new Date(item.dueDate) : null}

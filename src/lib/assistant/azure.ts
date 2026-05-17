@@ -39,8 +39,46 @@ function endpointOrigin(): string {
   }
 }
 
-function chatUrl() {
-  return `${endpointOrigin()}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=${API_VERSION}`;
+function responsesUrl() {
+  return `${endpointOrigin()}/openai/responses?api-version=${API_VERSION}`;
+}
+
+function toResponsesInput(messages: ChatMessage[]): { instructions: string | null; input: unknown[] } {
+  let instructions: string | null = null;
+  const input: unknown[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      instructions = msg.content;
+    } else if (msg.role === 'user') {
+      input.push({ role: 'user', content: msg.content ?? '' });
+    } else if (msg.role === 'assistant') {
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        if (msg.content) {
+          input.push({ role: 'assistant', content: msg.content });
+        }
+        for (const tc of msg.tool_calls) {
+          input.push({
+            type: 'function_call',
+            id: tc.id,
+            call_id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          });
+        }
+      } else {
+        input.push({ role: 'assistant', content: msg.content ?? '' });
+      }
+    } else if (msg.role === 'tool') {
+      input.push({
+        type: 'function_call_output',
+        call_id: msg.tool_call_id ?? '',
+        output: msg.content ?? '',
+      });
+    }
+  }
+
+  return { instructions, input };
 }
 
 export type StreamChunk =
@@ -63,11 +101,15 @@ export async function streamChatCompletion(
     });
   }
 
+  const { instructions, input } = toResponsesInput(messages);
+
   const body: Record<string, unknown> = {
-    messages,
+    model: DEPLOYMENT,
+    input,
     stream: true,
-    max_tokens: 1024,
+    max_output_tokens: 4096,
   };
+  if (instructions) body.instructions = instructions;
   if (tools && tools.length > 0) {
     body.tools = tools;
     body.tool_choice = 'auto';
@@ -75,7 +117,7 @@ export async function streamChatCompletion(
 
   let response: Response;
   try {
-    response = await fetch(chatUrl(), {
+    response = await fetch(responsesUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -110,17 +152,18 @@ export async function streamChatCompletion(
 
   return new ReadableStream<StreamChunk>({
     async pull(ctrl) {
-      const accumulatedToolCalls: Record<number, { id: string; name: string; args: string }> = {};
+      const functionCalls: Record<string, { callId: string; name: string; args: string }> = {};
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          const calls = Object.values(accumulatedToolCalls);
+          const calls = Object.values(functionCalls);
           if (calls.length > 0) {
             ctrl.enqueue({
               type: 'tool_calls',
               tool_calls: calls.map((c) => ({
-                id: c.id,
+                id: c.callId,
                 type: 'function' as const,
                 function: { name: c.name, arguments: c.args },
               })),
@@ -131,50 +174,56 @@ export async function streamChatCompletion(
           return;
         }
 
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() ?? '';
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') {
-            const calls = Object.values(accumulatedToolCalls);
-            if (calls.length > 0) {
-              ctrl.enqueue({
-                type: 'tool_calls',
-                tool_calls: calls.map((c) => ({
-                  id: c.id,
-                  type: 'function' as const,
-                  function: { name: c.name, arguments: c.args },
-                })),
-              });
-            }
-            ctrl.enqueue({ type: 'done' });
-            ctrl.close();
-            return;
-          }
+        for (const block of blocks) {
+          const dataLine = block.split('\n').find((l) => l.startsWith('data: '));
+          if (!dataLine) continue;
           try {
-            const parsed = JSON.parse(data);
-            const delta = parsed?.choices?.[0]?.delta;
-            if (!delta) continue;
+            const parsed = JSON.parse(dataLine.slice(6));
 
-            if (delta.content) {
-              ctrl.enqueue({ type: 'token', text: delta.content });
-            }
-
-            if (delta.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                const idx: number = tc.index ?? 0;
-                if (!accumulatedToolCalls[idx]) {
-                  accumulatedToolCalls[idx] = { id: tc.id ?? '', name: tc.function?.name ?? '', args: '' };
-                }
-                if (tc.id) accumulatedToolCalls[idx].id = tc.id;
-                if (tc.function?.name) accumulatedToolCalls[idx].name = tc.function.name;
-                if (tc.function?.arguments) accumulatedToolCalls[idx].args += tc.function.arguments;
+            if (parsed.type === 'response.output_text.delta') {
+              ctrl.enqueue({ type: 'token', text: parsed.delta ?? '' });
+            } else if (parsed.type === 'response.output_item.added' && parsed.item?.type === 'function_call') {
+              const item = parsed.item;
+              functionCalls[item.id] = {
+                callId: item.call_id ?? item.id,
+                name: item.name ?? '',
+                args: item.arguments ?? '',
+              };
+            } else if (parsed.type === 'response.function_call_arguments.delta') {
+              const fc = functionCalls[parsed.item_id];
+              if (fc) fc.args += parsed.delta ?? '';
+            } else if (parsed.type === 'response.function_call_arguments.done') {
+              const fc = functionCalls[parsed.item_id];
+              if (fc) fc.args = parsed.arguments ?? fc.args;
+            } else if (
+              parsed.type === 'response.completed' ||
+              parsed.type === 'response.failed' ||
+              parsed.type === 'response.incomplete'
+            ) {
+              if (parsed.type === 'response.failed') {
+                ctrl.enqueue({ type: 'error', message: parsed.response?.error?.message ?? 'Azure-Fehler' });
               }
+              const calls = Object.values(functionCalls);
+              if (calls.length > 0) {
+                ctrl.enqueue({
+                  type: 'tool_calls',
+                  tool_calls: calls.map((c) => ({
+                    id: c.callId,
+                    type: 'function' as const,
+                    function: { name: c.name, arguments: c.args },
+                  })),
+                });
+              }
+              ctrl.enqueue({ type: 'done' });
+              ctrl.close();
+              return;
             }
           } catch {
-            // partial chunk — skip
+            // partial JSON — skip
           }
         }
       }
@@ -190,13 +239,20 @@ export async function nonStreamChatCompletion(
     return { content: 'Azure OpenAI ist noch nicht konfiguriert.' };
   }
 
-  const body: Record<string, unknown> = { messages, max_tokens: 1024 };
+  const { instructions, input } = toResponsesInput(messages);
+
+  const body: Record<string, unknown> = {
+    model: DEPLOYMENT,
+    input,
+    max_output_tokens: 4096,
+  };
+  if (instructions) body.instructions = instructions;
   if (tools && tools.length > 0) {
     body.tools = tools;
     body.tool_choice = 'auto';
   }
 
-  const res = await fetch(chatUrl(), {
+  const res = await fetch(responsesUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
     body: JSON.stringify(body),
@@ -208,9 +264,25 @@ export async function nonStreamChatCompletion(
   }
 
   const json = await res.json();
-  const choice = json?.choices?.[0];
-  return {
-    content: choice?.message?.content ?? null,
-    tool_calls: choice?.message?.tool_calls,
-  };
+
+  let content: string | null = null;
+  const tool_calls: AzureToolCall[] = [];
+
+  for (const item of json.output ?? []) {
+    if (item.type === 'message') {
+      for (const part of item.content ?? []) {
+        if (part.type === 'output_text') {
+          content = (content ?? '') + part.text;
+        }
+      }
+    } else if (item.type === 'function_call') {
+      tool_calls.push({
+        id: item.call_id ?? item.id,
+        type: 'function',
+        function: { name: item.name, arguments: item.arguments },
+      });
+    }
+  }
+
+  return { content, tool_calls: tool_calls.length > 0 ? tool_calls : undefined };
 }

@@ -1,9 +1,9 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
-import { Header } from '@/components/layout/header';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Briefcase, MapPin, Hash, ArrowLeft, Calendar } from 'lucide-react';
+import { Building2, Briefcase, MapPin, Hash, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { EditMandantDialog } from '@/components/mandanten/edit-mandant-dialog';
 
@@ -57,49 +57,40 @@ export default async function MandantDetailPage({
 
   return (
     <div>
-      <Header title={mandant.name} description="Mandanten-Details" />
+      <Breadcrumbs items={[{ label: 'Mandanten', href: '/mandanten' }, { label: mandant.name }]} />
+
+      <div className="flex items-center justify-between border-b border-dataly-line bg-dataly-surface px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold text-dataly-ink">{mandant.name}</h1>
+          {mandant.legalName && mandant.legalName !== mandant.name && (
+            <p className="text-[13px] text-dataly-muted mt-0.5">{mandant.legalName}</p>
+          )}
+        </div>
+        <EditMandantDialog
+          mandant={{
+            id: mandant.id,
+            name: mandant.name,
+            legalName: mandant.legalName,
+            taxId: mandant.taxId,
+            address: address,
+          }}
+        />
+      </div>
 
       <div className="p-6 space-y-6">
-        {/* Back + Actions */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/mandanten"
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Zurück zu Mandanten
-          </Link>
-          <EditMandantDialog
-            mandant={{
-              id: mandant.id,
-              name: mandant.name,
-              legalName: mandant.legalName,
-              taxId: mandant.taxId,
-              address: address,
-            }}
-          />
-        </div>
-
         {/* Mandant Detail Card */}
         <Card>
           <CardContent className="py-5">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-100">
-                <Building2 className="h-6 w-6 text-blue-600" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-dataly-info-soft">
+                <Building2 className="h-6 w-6 text-dataly-blue" />
               </div>
               <div className="flex-1 space-y-3">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">{mandant.name}</h2>
-                  {mandant.legalName && mandant.legalName !== mandant.name && (
-                    <p className="text-sm text-slate-500">{mandant.legalName}</p>
-                  )}
-                </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {address?.city && (
                     <div className="flex items-start gap-2">
-                      <MapPin className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-                      <div className="text-sm text-slate-700">
+                      <MapPin className="h-4 w-4 text-dataly-muted mt-0.5 shrink-0" />
+                      <div className="text-sm text-dataly-ink">
                         {address.street && <p>{address.street}</p>}
                         <p>
                           {address.zip ? `${address.zip} ` : ''}
@@ -109,15 +100,13 @@ export default async function MandantDetailPage({
                       </div>
                     </div>
                   )}
-
                   {mandant.taxId && (
                     <div className="flex items-center gap-2">
-                      <Hash className="h-4 w-4 text-slate-400 shrink-0" />
-                      <span className="text-sm text-slate-700">{mandant.taxId}</span>
+                      <Hash className="h-4 w-4 text-dataly-muted shrink-0" />
+                      <span className="text-sm text-dataly-ink">{mandant.taxId}</span>
                     </div>
                   )}
                 </div>
-
                 <div className="flex gap-2">
                   <Badge variant="secondary">
                     {mandant.engagements.length} {mandant.engagements.length === 1 ? 'Engagement' : 'Engagements'}
@@ -133,36 +122,36 @@ export default async function MandantDetailPage({
 
         {/* Engagements */}
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted mb-3">
             Engagements
           </h2>
 
           {mandant.engagements.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                <Briefcase className="h-8 w-8 text-slate-300 mb-3" />
-                <p className="text-sm text-slate-500">Noch keine Engagements vorhanden.</p>
-                <p className="text-xs text-slate-400 mt-1">
+                <Briefcase className="h-8 w-8 text-dataly-muted mb-3" />
+                <p className="text-sm text-dataly-slate">Noch keine Engagements vorhanden.</p>
+                <p className="text-xs text-dataly-muted mt-1">
                   Erstellen Sie ein Engagement über die Engagements-Seite.
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               {mandant.engagements.map((e) => {
                 const status = statusConfig[e.status] || { label: e.status, variant: 'outline' as const };
                 return (
                   <Link key={e.id} href={`/engagements/${e.id}`}>
-                    <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                      <CardContent className="flex items-center gap-4 py-4">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                          <Briefcase className="h-5 w-5 text-emerald-600" />
+                    <Card className="hover:border-dataly-line-strong transition-colors cursor-pointer">
+                      <CardContent className="flex items-center gap-4 py-3.5 px-4">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-dataly-success-soft">
+                          <Briefcase className="h-4 w-4 text-dataly-success" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-slate-900 truncate">{e.title}</h3>
+                          <span className="text-sm font-semibold text-dataly-ink truncate block">{e.title}</span>
                           <div className="flex items-center gap-1 mt-0.5">
-                            <Calendar className="h-3 w-3 text-slate-400" />
-                            <span className="text-xs text-slate-500">{e.fiscalYear}</span>
+                            <Calendar className="h-3 w-3 text-dataly-muted" />
+                            <span className="text-xs text-dataly-slate">{e.fiscalYear}</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">

@@ -1,11 +1,10 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
-import { Header } from '@/components/layout/header';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   FolderOpen,
-  ArrowLeft,
   Users,
   FileText,
   ChevronRight,
@@ -65,50 +64,28 @@ export default async function WorkspacePage({
 
   return (
     <div>
-      <Header
-        title="PBC-Workspace"
-        description={`${workspace.engagement.title} · ${workspace.engagement.mandant.name}`}
-      />
+      <Breadcrumbs items={[
+        { label: 'PBC', href: '/pbc' },
+        { label: workspace.engagement.title },
+      ]} />
+
+      <div className="flex items-center justify-between border-b border-dataly-line bg-dataly-surface px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold text-dataly-ink">{workspace.engagement.title}</h1>
+          <p className="text-[13px] text-dataly-muted mt-0.5">
+            {workspace.engagement.mandant.name} · {workspace.engagement.fiscalYear} ·{' '}
+            <Link href={`/engagements/${workspace.engagement.id}`} className="text-dataly-blue hover:underline">
+              Zum Engagement
+            </Link>
+          </p>
+        </div>
+      </div>
 
       <div className="p-6 space-y-6">
-        {/* Back */}
-        <Link
-          href="/pbc"
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors w-fit"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Zurück zu PBC
-        </Link>
-
-        {/* Workspace Header Card */}
-        <Card>
-          <CardContent className="py-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-100">
-                <FolderOpen className="h-5 w-5 text-violet-600" />
-              </div>
-              <div>
-                <h2 className="font-semibold text-slate-900">{workspace.engagement.title}</h2>
-                <p className="text-sm text-slate-500">
-                  {workspace.engagement.mandant.name} · {workspace.engagement.fiscalYear}
-                </p>
-              </div>
-              <div className="ml-auto">
-                <Link
-                  href={`/engagements/${workspace.engagement.id}`}
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  Zum Engagement
-                </Link>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Request Lists */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted">
               Anforderungslisten ({workspace.requestLists.length})
             </h2>
             <CreateListDialog workspaceId={workspaceId} />
@@ -117,15 +94,15 @@ export default async function WorkspacePage({
           {workspace.requestLists.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                <FileText className="h-8 w-8 text-slate-300 mb-3" />
-                <p className="text-sm text-slate-500">Noch keine Listen vorhanden.</p>
-                <p className="text-xs text-slate-400 mt-1">
+                <FileText className="h-8 w-8 text-dataly-muted mb-3" />
+                <p className="text-sm text-dataly-slate">Noch keine Listen vorhanden.</p>
+                <p className="text-xs text-dataly-muted mt-1">
                   Erstellen Sie eine Anforderungsliste mit dem Button oben rechts.
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               {workspace.requestLists.map((list) => {
                 const items = list.items as PbcItemStatus[];
                 const openCount = items.filter((i) => i.status === 'OPEN').length;
@@ -134,36 +111,25 @@ export default async function WorkspacePage({
                 const revisionCount = items.filter((i) => i.status === 'NEEDS_REVISION').length;
 
                 return (
-                  <Link
-                    key={list.id}
-                    href={`/pbc/${workspaceId}/lists/${list.id}`}
-                  >
-                    <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                      <CardContent className="flex items-center gap-4 py-4">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                          <FileText className="h-5 w-5 text-slate-500" />
+                  <Link key={list.id} href={`/pbc/${workspaceId}/lists/${list.id}`}>
+                    <Card className="hover:border-dataly-line-strong transition-colors cursor-pointer">
+                      <CardContent className="flex items-center gap-4 py-3.5 px-4">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-dataly-surface-subtle">
+                          <FileText className="h-4 w-4 text-dataly-slate" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-slate-900 truncate">{list.title}</h3>
-                          <p className="text-xs text-slate-500 mt-0.5">
+                          <span className="text-sm font-semibold text-dataly-ink truncate block">{list.title}</span>
+                          <p className="text-xs text-dataly-muted mt-0.5">
                             {list._count.items} {list._count.items === 1 ? 'Anforderung' : 'Anforderungen'}
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {openCount > 0 && (
-                            <Badge variant="secondary">{openCount} Offen</Badge>
-                          )}
-                          {uploadedCount > 0 && (
-                            <Badge variant="default">{uploadedCount} Hochgeladen</Badge>
-                          )}
-                          {acceptedCount > 0 && (
-                            <Badge variant="success">{acceptedCount} Akzeptiert</Badge>
-                          )}
-                          {revisionCount > 0 && (
-                            <Badge variant="warning">{revisionCount} Überarbeitung</Badge>
-                          )}
+                          {openCount > 0 && <Badge variant="secondary">{openCount} Offen</Badge>}
+                          {uploadedCount > 0 && <Badge variant="default">{uploadedCount} Hochgeladen</Badge>}
+                          {acceptedCount > 0 && <Badge variant="success">{acceptedCount} Akzeptiert</Badge>}
+                          {revisionCount > 0 && <Badge variant="warning">{revisionCount} Überarbeitung</Badge>}
                         </div>
-                        <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                        <ChevronRight className="h-4 w-4 text-dataly-muted shrink-0" />
                       </CardContent>
                     </Card>
                   </Link>
@@ -176,7 +142,7 @@ export default async function WorkspacePage({
         {/* Members */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted">
               Mitglieder ({workspace.members.length})
             </h2>
             <AddMemberDialog workspaceId={workspaceId} />
@@ -185,8 +151,8 @@ export default async function WorkspacePage({
           {workspace.members.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-8 text-center">
-                <Users className="h-8 w-8 text-slate-300 mb-3" />
-                <p className="text-sm text-slate-500">Noch keine Mitglieder eingeladen.</p>
+                <Users className="h-8 w-8 text-dataly-muted mb-3" />
+                <p className="text-sm text-dataly-slate">Noch keine Mitglieder eingeladen.</p>
               </CardContent>
             </Card>
           ) : (
@@ -194,12 +160,12 @@ export default async function WorkspacePage({
               {workspace.members.map((member) => (
                 <Card key={member.id}>
                   <CardContent className="flex items-center gap-3 py-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-dataly-navy text-white text-xs font-semibold">
                       {member.user.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{member.user.name}</p>
-                      <p className="text-xs text-slate-500 truncate">{member.user.email}</p>
+                      <p className="text-sm font-medium text-dataly-ink truncate">{member.user.name}</p>
+                      <p className="text-xs text-dataly-muted truncate">{member.user.email}</p>
                     </div>
                     <Badge variant="secondary">
                       {pbcRoleLabel[member.role] || member.role}

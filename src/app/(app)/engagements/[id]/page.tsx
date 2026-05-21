@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
-import { Header } from '@/components/layout/header';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,6 @@ import {
   Building2,
   Calendar,
   FolderOpen,
-  ArrowLeft,
   ExternalLink,
   Mail,
 } from 'lucide-react';
@@ -91,55 +90,48 @@ export default async function EngagementDetailPage({
 
   return (
     <div>
-      <Header title={engagement.title} description="Engagement-Details" />
+      <Breadcrumbs items={[{ label: 'Engagements', href: '/engagements' }, { label: engagement.title }]} />
+
+      <div className="flex items-center justify-between border-b border-dataly-line bg-dataly-surface px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold text-dataly-ink">{engagement.title}</h1>
+          <p className="text-[13px] text-dataly-muted mt-0.5">
+            {engagement.mandant.name} · GJ {engagement.fiscalYear}
+          </p>
+        </div>
+        <Badge variant={status.variant}>{status.label}</Badge>
+      </div>
 
       <div className="p-6 space-y-6">
-        {/* Back */}
-        <div className="flex items-center">
-          <Link
-            href="/engagements"
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Zurück zu Engagements
-          </Link>
-        </div>
-
-        {/* Engagement Card */}
+        {/* Engagement meta */}
         <Card>
           <CardContent className="py-5">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
-                <Briefcase className="h-6 w-6 text-emerald-600" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-dataly-success-soft">
+                <Briefcase className="h-6 w-6 text-dataly-success" />
               </div>
               <div className="flex-1 space-y-3">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">{engagement.title}</h2>
-                </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
+                    <Building2 className="h-4 w-4 text-dataly-muted shrink-0" />
                     <Link
                       href={`/mandanten/${engagement.mandantId}`}
-                      className="text-sm text-blue-600 hover:underline"
+                      className="text-sm text-dataly-blue hover:underline"
                     >
                       {engagement.mandant.name}
                     </Link>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
-                    <span className="text-sm text-slate-700">
+                    <Calendar className="h-4 w-4 text-dataly-muted shrink-0" />
+                    <span className="text-sm text-dataly-ink">
                       Geschäftsjahr {engagement.fiscalYear}
                     </span>
                   </div>
                 </div>
-
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary">
                     {engagementTypeLabel[engagement.type] || engagement.type}
                   </Badge>
-                  <Badge variant={status.variant}>{status.label}</Badge>
                   {engagement._count.campaigns > 0 && (
                     <Badge variant="outline">
                       {engagement._count.campaigns}{' '}
@@ -154,30 +146,30 @@ export default async function EngagementDetailPage({
 
         {/* PBC Workspace */}
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted mb-3">
             Dokumentenaustausch (PBC)
           </h2>
 
           {engagement.pbcWorkspace ? (
             <Card>
-              <CardContent className="flex items-center gap-4 py-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-100">
-                  <FolderOpen className="h-5 w-5 text-violet-600" />
+              <CardContent className="flex items-center gap-4 py-3.5 px-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-dataly-teal/10">
+                  <FolderOpen className="h-4 w-4 text-dataly-teal" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-slate-900">PBC-Workspace</h3>
+                  <span className="text-sm font-semibold text-dataly-ink">PBC-Workspace</span>
                   <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-dataly-slate">
                       {engagement.pbcWorkspace._count.requestLists}{' '}
                       {engagement.pbcWorkspace._count.requestLists === 1 ? 'Liste' : 'Listen'}
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-dataly-slate">
                       {engagement.pbcWorkspace._count.members}{' '}
                       {engagement.pbcWorkspace._count.members === 1 ? 'Mitglied' : 'Mitglieder'}
                     </span>
                   </div>
                 </div>
-                <Button asChild className="bg-blue-700 hover:bg-blue-800 shrink-0">
+                <Button asChild className="bg-dataly-navy hover:bg-dataly-blue shrink-0">
                   <Link href={`/pbc/${engagement.pbcWorkspace.id}`}>
                     <ExternalLink className="h-4 w-4" />
                     Zum PBC-Workspace
@@ -188,17 +180,17 @@ export default async function EngagementDetailPage({
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                <FolderOpen className="h-8 w-8 text-slate-300 mb-3" />
-                <p className="text-sm text-slate-500">Kein PBC-Workspace vorhanden.</p>
+                <FolderOpen className="h-8 w-8 text-dataly-muted mb-3" />
+                <p className="text-sm text-dataly-slate">Kein PBC-Workspace vorhanden.</p>
               </CardContent>
             </Card>
           )}
         </div>
 
-        {/* SBA - Saldenbestätigungen */}
+        {/* SBA */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted">
               Saldenbestätigungen (SBA)
             </h2>
             <CreateCampaignDialog engagementId={engagement.id} />
@@ -207,11 +199,11 @@ export default async function EngagementDetailPage({
           {campaigns.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                <Mail className="h-8 w-8 text-slate-300 mb-3" />
-                <p className="text-sm font-medium text-slate-600 mb-1">
+                <Mail className="h-8 w-8 text-dataly-muted mb-3" />
+                <p className="text-sm font-medium text-dataly-ink mb-1">
                   Noch keine SBA-Kampagnen vorhanden
                 </p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-dataly-slate">
                   Erstellen Sie eine Kampagne, um Saldenbestätigungen zu versenden.
                 </p>
               </CardContent>
@@ -226,16 +218,16 @@ export default async function EngagementDetailPage({
                   };
                 return (
                   <Card key={campaign.id}>
-                    <CardContent className="flex items-center gap-4 py-4">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100">
-                        <Mail className="h-5 w-5 text-blue-600" />
+                    <CardContent className="flex items-center gap-4 py-3.5 px-4">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-dataly-info-soft">
+                        <Mail className="h-4 w-4 text-dataly-blue" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-slate-900 truncate">
+                        <span className="text-sm font-semibold text-dataly-ink truncate block">
                           {campaign.title}
-                        </h3>
+                        </span>
                         <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-xs text-slate-500">
+                          <span className="text-xs text-dataly-slate">
                             Stichtag:{' '}
                             {new Date(campaign.balanceDate).toLocaleDateString('de-DE', {
                               day: '2-digit',
@@ -243,7 +235,7 @@ export default async function EngagementDetailPage({
                               year: 'numeric',
                             })}
                           </span>
-                          <span className="text-xs text-slate-500">
+                          <span className="text-xs text-dataly-slate">
                             {campaign._count.requests}{' '}
                             {campaign._count.requests === 1 ? 'Partner' : 'Partner'}
                           </span>

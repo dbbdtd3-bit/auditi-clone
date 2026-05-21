@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { Header } from '@/components/layout/header';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Mail, Building2, Calendar, CheckCircle2, Clock, Send } from 'lucide-react';
@@ -56,64 +56,63 @@ export default async function SbaPage() {
 
   return (
     <div>
-      <Header
-        title="Saldenbestätigungen"
-        description="Alle Bestätigungskampagnen im Überblick"
-      />
+      <Breadcrumbs items={[{ label: 'Saldenbestätigungen' }]} />
+
+      <div className="flex items-center justify-between border-b border-dataly-line bg-dataly-surface px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold text-dataly-ink">Saldenbestätigungen</h1>
+          <p className="text-[13px] text-dataly-muted mt-0.5">
+            Alle Bestätigungskampagnen im Überblick
+          </p>
+        </div>
+      </div>
 
       <div className="p-6 space-y-6">
-        {/* Stats row */}
         {campaigns.length > 0 && (
           <div className="grid grid-cols-3 gap-4">
             <StatCard
-              icon={<Send className="h-5 w-5 text-blue-600" />}
-              bg="bg-blue-50"
+              icon={<Send className="h-5 w-5 text-dataly-blue" />}
+              bg="bg-dataly-info-soft"
               label="Aktive Kampagnen"
               value={active.length}
             />
             <StatCard
-              icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
-              bg="bg-emerald-50"
+              icon={<CheckCircle2 className="h-5 w-5 text-dataly-success" />}
+              bg="bg-dataly-success-soft"
               label="Abgeschlossen"
               value={finished.length}
             />
             <StatCard
-              icon={<Clock className="h-5 w-5 text-amber-600" />}
-              bg="bg-amber-50"
+              icon={<Clock className="h-5 w-5 text-dataly-warning" />}
+              bg="bg-dataly-warning-soft"
               label="Entwürfe"
               value={draft.length}
             />
           </div>
         )}
 
-        {/* Empty state */}
         {campaigns.length === 0 && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 mb-4">
-                <Mail className="h-7 w-7 text-slate-400" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-dataly-surface-subtle mb-4">
+                <Mail className="h-7 w-7 text-dataly-muted" />
               </div>
-              <h3 className="text-base font-semibold text-slate-900 mb-1">
-                Noch keine Kampagnen
+              <h3 className="text-base font-semibold text-dataly-ink mb-1">
+                Noch keine Kampagnen angelegt
               </h3>
-              <p className="text-sm text-slate-500 max-w-sm">
+              <p className="text-sm text-dataly-slate max-w-sm">
                 Öffnen Sie ein Engagement und legen Sie dort eine Saldenbestätigungs-Kampagne an.
               </p>
             </CardContent>
           </Card>
         )}
 
-        {/* Active campaigns */}
         {active.length > 0 && (
           <Section title="Aktive Kampagnen" campaigns={active} />
         )}
-
-        {/* Draft campaigns */}
         {draft.length > 0 && (
           <Section title="Entwürfe" campaigns={draft} />
         )}
-
-        {/* Finished campaigns */}
         {finished.length > 0 && (
           <Section title="Abgeschlossen / Archiviert" campaigns={finished} />
         )}
@@ -140,8 +139,8 @@ function StatCard({
           {icon}
         </div>
         <div>
-          <p className="text-2xl font-bold text-slate-900">{value}</p>
-          <p className="text-xs text-slate-500">{label}</p>
+          <p className="text-2xl font-bold text-dataly-ink">{value}</p>
+          <p className="text-xs text-dataly-slate">{label}</p>
         </div>
       </CardContent>
     </Card>
@@ -151,7 +150,7 @@ function StatCard({
 function Section({ title, campaigns }: { title: string; campaigns: Campaign[] }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted">
         {title}
       </h2>
       {campaigns.map((c) => (
@@ -168,25 +167,25 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
 
   return (
     <Link href={`/campaigns/${campaign.id}`}>
-      <Card className="hover:shadow-md transition-shadow cursor-pointer">
-        <CardContent className="flex items-center gap-4 py-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100">
-            <Mail className="h-5 w-5 text-blue-600" />
+      <Card className="hover:border-dataly-line-strong transition-colors cursor-pointer">
+        <CardContent className="flex items-center gap-4 py-3.5 px-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-dataly-info-soft">
+            <Mail className="h-4 w-4 text-dataly-blue" />
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-slate-900 truncate">{campaign.title}</h3>
+            <span className="text-sm font-semibold text-dataly-ink truncate block">{campaign.title}</span>
             <div className="flex items-center gap-3 mt-0.5">
               <div className="flex items-center gap-1">
-                <Building2 className="h-3 w-3 text-slate-400" />
-                <span className="text-xs text-slate-500">{campaign.engagement.mandant.name}</span>
+                <Building2 className="h-3 w-3 text-dataly-muted" />
+                <span className="text-xs text-dataly-slate">{campaign.engagement.mandant.name}</span>
               </div>
-              <span className="text-slate-300 text-xs">·</span>
-              <span className="text-xs text-slate-500 truncate">{campaign.engagement.title}</span>
-              <span className="text-slate-300 text-xs">·</span>
+              <span className="text-dataly-line text-xs">·</span>
+              <span className="text-xs text-dataly-slate truncate">{campaign.engagement.title}</span>
+              <span className="text-dataly-line text-xs">·</span>
               <div className="flex items-center gap-1">
-                <Calendar className="h-3 w-3 text-slate-400" />
-                <span className="text-xs text-slate-500">
+                <Calendar className="h-3 w-3 text-dataly-muted" />
+                <span className="text-xs text-dataly-slate">
                   {new Date(campaign.balanceDate).toLocaleDateString('de-DE', {
                     day: '2-digit',
                     month: '2-digit',
@@ -199,16 +198,16 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
 
           <div className="flex items-center gap-4 shrink-0 text-right">
             <div>
-              <p className="text-sm font-semibold text-slate-900">{campaign.requests.length}</p>
-              <p className="text-[10px] text-slate-400">Anfragen</p>
+              <p className="text-sm font-semibold tabular-nums text-dataly-ink">{campaign.requests.length}</p>
+              <p className="text-[10px] text-dataly-muted">Anfragen</p>
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-900">{sent}</p>
-              <p className="text-[10px] text-slate-400">Versendet</p>
+              <p className="text-sm font-semibold tabular-nums text-dataly-ink">{sent}</p>
+              <p className="text-[10px] text-dataly-muted">Versendet</p>
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-900">{rate} %</p>
-              <p className="text-[10px] text-slate-400">Rücklauf</p>
+              <p className="text-sm font-semibold tabular-nums text-dataly-ink">{rate} %</p>
+              <p className="text-[10px] text-dataly-muted">Rücklauf</p>
             </div>
             <Badge variant={status.variant}>{status.label}</Badge>
           </div>

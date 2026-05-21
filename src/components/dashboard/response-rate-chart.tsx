@@ -29,9 +29,9 @@ interface ResponseRateChartProps {
 }
 
 function rateColor(rate: number): string {
-  if (rate >= 80) return '#10b981'; // emerald-500
-  if (rate >= 50) return '#f59e0b'; // amber-500
-  return '#ef4444'; // red-500
+  if (rate >= 80) return '#16865a'; // dataly-success
+  if (rate >= 50) return '#b7791f'; // dataly-warning
+  return '#c2413d'; // dataly-danger
 }
 
 const CustomTooltip = ({
@@ -44,15 +44,15 @@ const CustomTooltip = ({
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-md text-xs space-y-1">
-      <p className="font-semibold text-slate-800 truncate max-w-[200px]">{d.title}</p>
-      <p className="text-slate-500">{d.mandantName}</p>
-      <div className="pt-1 space-y-0.5">
-        <p>Versandt: <span className="font-medium text-slate-700">{d.sent}</span></p>
-        <p>Geantwortet: <span className="font-medium text-slate-700">{d.responded}</span></p>
+    <div className="rounded-lg border border-dataly-line bg-dataly-surface p-3 shadow-md text-xs space-y-1">
+      <p className="font-semibold text-dataly-ink truncate max-w-[200px]">{d.title}</p>
+      <p className="text-dataly-slate">{d.mandantName}</p>
+      <div className="pt-1 space-y-0.5 text-dataly-slate">
+        <p>Versandt: <span className="font-medium">{d.sent}</span></p>
+        <p>Geantwortet: <span className="font-medium">{d.responded}</span></p>
         <p>Rücklaufquote: <span className="font-semibold" style={{ color: rateColor(d.responseRate) }}>{d.responseRate}%</span></p>
         {d.hasDifferences > 0 && (
-          <p className="text-amber-600">Differenzen: {d.hasDifferences}</p>
+          <p className="text-dataly-warning">Differenzen: {d.hasDifferences}</p>
         )}
       </div>
     </div>
@@ -62,7 +62,7 @@ const CustomTooltip = ({
 export function ResponseRateChart({ data }: ResponseRateChartProps) {
   if (!data.length) {
     return (
-      <div className="flex h-48 items-center justify-center text-sm text-slate-400">
+      <div className="flex h-48 items-center justify-center text-sm text-dataly-muted">
         Keine aktiven Kampagnen vorhanden
       </div>
     );
@@ -76,17 +76,17 @@ export function ResponseRateChart({ data }: ResponseRateChartProps) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#d9e2ec" />
         <XAxis
           dataKey="name"
-          tick={{ fontSize: 11, fill: '#94a3b8' }}
+          tick={{ fontSize: 11, fill: '#7a8a9e' }}
           axisLine={false}
           tickLine={false}
         />
         <YAxis
           domain={[0, 100]}
           tickFormatter={(v) => `${v}%`}
-          tick={{ fontSize: 11, fill: '#94a3b8' }}
+          tick={{ fontSize: 11, fill: '#7a8a9e' }}
           axisLine={false}
           tickLine={false}
         />

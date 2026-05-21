@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { Header } from '@/components/layout/header';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EngagementOverview } from '@/components/dashboard/engagement-overview';
 import { CampaignKpis } from '@/components/dashboard/campaign-kpis';
@@ -10,7 +10,6 @@ import {
   Briefcase,
   Mail,
   FolderOpen,
-  TrendingUp,
   BarChart3,
 } from 'lucide-react';
 
@@ -118,22 +117,22 @@ interface StatCardProps {
   value: number;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
-  iconColor: string;
-  iconBg: string;
+  iconClass: string;
+  iconBgClass: string;
 }
 
-function StatCard({ title, value, description, icon: Icon, iconColor, iconBg }: StatCardProps) {
+function StatCard({ title, value, description, icon: Icon, iconClass, iconBgClass }: StatCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-slate-600">{title}</CardTitle>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconBg}`}>
-          <Icon className={`h-5 w-5 ${iconColor}`} />
+        <CardTitle className="text-sm font-medium text-dataly-slate">{title}</CardTitle>
+        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconBgClass}`}>
+          <Icon className={`h-5 w-5 ${iconClass}`} />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold text-slate-900">{value}</div>
-        <p className="text-xs text-slate-500 mt-1">{description}</p>
+        <div className="text-3xl font-bold text-dataly-ink">{value}</div>
+        <p className="text-xs text-dataly-muted mt-1">{description}</p>
       </CardContent>
     </Card>
   );
@@ -150,24 +149,21 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <Header title="Dashboard" />
+      <Breadcrumbs items={[{ label: 'Dashboard' }]} />
+
+      {/* Page header */}
+      <div className="flex items-center justify-between border-b border-dataly-line bg-dataly-surface px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold text-dataly-ink">
+            {greeting}, {userName}
+          </h1>
+          <p className="text-[13px] text-dataly-muted mt-0.5">
+            Übersicht der aktuellen Prüfungsaktivitäten
+          </p>
+        </div>
+      </div>
 
       <div className="p-6 space-y-6">
-        {/* Welcome */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-            <TrendingUp className="h-5 w-5 text-blue-600" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              {greeting}, {userName}
-            </h2>
-            <p className="text-sm text-slate-500">
-              Hier ist eine Übersicht Ihrer aktuellen Prüfungsaktivitäten.
-            </p>
-          </div>
-        </div>
-
         {/* KPI Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
@@ -175,32 +171,32 @@ export default async function DashboardPage() {
             value={data.mandantenCount}
             description="Mandanten in der Datenbank"
             icon={Building2}
-            iconColor="text-blue-600"
-            iconBg="bg-blue-100"
+            iconClass="text-dataly-blue"
+            iconBgClass="bg-dataly-info-soft"
           />
           <StatCard
             title="Aktive Engagements"
             value={data.activeEngagements}
             description="Laufende Prüfungsaufträge"
             icon={Briefcase}
-            iconColor="text-emerald-600"
-            iconBg="bg-emerald-100"
+            iconClass="text-dataly-success"
+            iconBgClass="bg-dataly-success-soft"
           />
           <StatCard
             title="Offene Saldenbestätigungen"
             value={data.offeneSBA}
             description="Versandt, Antwort ausstehend"
             icon={Mail}
-            iconColor="text-amber-600"
-            iconBg="bg-amber-100"
+            iconClass="text-dataly-warning"
+            iconBgClass="bg-dataly-warning-soft"
           />
           <StatCard
             title="Ausstehende PBC-Items"
             value={data.offenePBC}
             description="Dokumente noch nicht hochgeladen"
             icon={FolderOpen}
-            iconColor="text-violet-600"
-            iconBg="bg-violet-100"
+            iconClass="text-dataly-teal"
+            iconBgClass="bg-dataly-teal/10"
           />
         </div>
 
@@ -209,8 +205,8 @@ export default async function DashboardPage() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-slate-500" />
-                <CardTitle className="text-sm font-semibold text-slate-700">
+                <Briefcase className="h-4 w-4 text-dataly-muted" />
+                <CardTitle className="text-sm font-semibold text-dataly-slate">
                   Aktive Engagements
                 </CardTitle>
               </div>
@@ -223,8 +219,8 @@ export default async function DashboardPage() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-slate-500" />
-                <CardTitle className="text-sm font-semibold text-slate-700">
+                <Mail className="h-4 w-4 text-dataly-muted" />
+                <CardTitle className="text-sm font-semibold text-dataly-slate">
                   Kampagnen-KPIs
                 </CardTitle>
               </div>
@@ -239,12 +235,12 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-slate-500" />
-              <CardTitle className="text-sm font-semibold text-slate-700">
+              <BarChart3 className="h-4 w-4 text-dataly-muted" />
+              <CardTitle className="text-sm font-semibold text-dataly-slate">
                 Rücklaufquote nach Kampagne
               </CardTitle>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-dataly-muted mt-0.5">
               Anteil der eingegangenen Antworten an den versandten Anfragen
             </p>
           </CardHeader>

@@ -1,8 +1,6 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
-import { Header } from '@/components/layout/header';
-import { ChevronRight } from 'lucide-react';
-import Link from 'next/link';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { ListPageClient } from '@/components/pbc/list-page-client';
 
 async function getList(listId: string, workspaceId: string) {
@@ -41,22 +39,22 @@ export default async function ListPage({
 
   return (
     <div>
-      <Header
-        title={list.title}
-        description={`${engagement.title} · ${engagement.mandant.name}`}
-      />
+      <Breadcrumbs items={[
+        { label: 'PBC', href: '/pbc' },
+        { label: engagement.title, href: `/pbc/${workspaceId}` },
+        { label: list.title },
+      ]} />
+
+      <div className="flex items-center justify-between border-b border-dataly-line bg-dataly-surface px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold text-dataly-ink">{list.title}</h1>
+          <p className="text-[13px] text-dataly-muted mt-0.5">
+            {engagement.title} · {engagement.mandant.name}
+          </p>
+        </div>
+      </div>
 
       <div className="p-6 space-y-4">
-        <nav className="flex items-center gap-1.5 text-sm text-slate-500">
-          <Link href="/pbc" className="hover:text-slate-900 transition-colors">PBC</Link>
-          <ChevronRight className="h-3 w-3" />
-          <Link href={`/pbc/${workspaceId}`} className="hover:text-slate-900 transition-colors truncate max-w-[160px]">
-            {engagement.title}
-          </Link>
-          <ChevronRight className="h-3 w-3" />
-          <span className="text-slate-900 truncate max-w-[200px]">{list.title}</span>
-        </nav>
-
         <ListPageClient
           listId={listId}
           workspaceId={workspaceId}

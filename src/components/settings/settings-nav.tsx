@@ -30,8 +30,8 @@ export function SettingsNav({ isAdmin }: Props) {
               className={cn(
                 'rounded-md px-4 py-2 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-slate-100 text-slate-900'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                  ? 'bg-dataly-surface-subtle text-dataly-ink'
+                  : 'text-dataly-slate hover:bg-dataly-surface-subtle hover:text-dataly-ink'
               )}
             >
               {t.label}

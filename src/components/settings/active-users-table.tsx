@@ -80,7 +80,7 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
 
   if (users.length === 0) {
     return (
-      <p className="text-sm text-slate-500 py-6 text-center">
+      <p className="text-sm text-dataly-slate py-6 text-center">
         Keine {kind === 'WP' ? 'Kanzlei-Mitarbeiter' : 'Mandanten'} vorhanden.
       </p>
     );
@@ -102,7 +102,7 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
         {users.map((user) => (
           <TableRow key={user.id} className={user.status === 'DISABLED' ? 'opacity-50' : ''}>
             <TableCell className="font-medium">{user.name}</TableCell>
-            <TableCell className="text-slate-500 text-sm">{user.email}</TableCell>
+            <TableCell className="text-dataly-slate text-sm">{user.email}</TableCell>
             <TableCell>
               {editingId === user.id ? (
                 <Select value={editRole} onValueChange={setEditRole}>
@@ -121,7 +121,7 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
                 </Badge>
               )}
             </TableCell>
-            <TableCell className="text-sm text-slate-500">
+            <TableCell className="text-sm text-dataly-slate">
               {kind === 'WP'
                 ? user.teams.map((t) => t.team.name).join(', ') || '—'
                 : user.mandanten.map((m) => m.mandant.name).join(', ') || '—'}
@@ -137,15 +137,15 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
               {editingId === user.id ? (
                 <div className="flex justify-end gap-1">
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveEdit(user.id)} disabled={saving}>
-                    <Check className="h-3.5 w-3.5 text-green-600" />
+                    <Check className="h-3.5 w-3.5 text-dataly-success" />
                   </Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={cancelEdit}>
-                    <X className="h-3.5 w-3.5 text-slate-500" />
+                    <X className="h-3.5 w-3.5 text-dataly-muted" />
                   </Button>
                 </div>
               ) : (
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(user)}>
-                  <Pencil className="h-3.5 w-3.5 text-slate-400" />
+                  <Pencil className="h-3.5 w-3.5 text-dataly-muted" />
                 </Button>
               )}
             </TableCell>

@@ -37,7 +37,7 @@ export function PendingUsersTable({ users, onRefresh }: PendingUsersTableProps) 
 
   if (users.length === 0) {
     return (
-      <p className="text-sm text-slate-500 py-6 text-center">Keine ausstehenden Registrierungen.</p>
+      <p className="text-sm text-dataly-slate py-6 text-center">Keine ausstehenden Registrierungen.</p>
     );
   }
 
@@ -57,13 +57,13 @@ export function PendingUsersTable({ users, onRefresh }: PendingUsersTableProps) 
           {users.map((user) => (
             <TableRow key={user.id}>
               <TableCell className="font-medium">{user.name}</TableCell>
-              <TableCell className="text-slate-500">{user.email}</TableCell>
+              <TableCell className="text-dataly-slate">{user.email}</TableCell>
               <TableCell>
                 <Badge variant="outline" className="text-xs">
                   {user.kind === 'WP' ? 'Kanzlei' : 'Mandant'}
                 </Badge>
               </TableCell>
-              <TableCell className="text-slate-500 text-sm">
+              <TableCell className="text-dataly-muted text-sm">
                 {new Date(user.createdAt).toLocaleDateString('de-DE')}
               </TableCell>
               <TableCell className="text-right">

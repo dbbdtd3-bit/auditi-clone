@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { notFound } from 'next/navigation';
 import { getPresignedDownload } from '@/lib/obs';
-import { Header } from '@/components/layout/header';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -11,10 +11,7 @@ import {
   User,
   Paperclip,
   Download,
-  ChevronRight,
-  ArrowLeft,
 } from 'lucide-react';
-import Link from 'next/link';
 import { FileUploader } from '@/components/pbc/file-uploader';
 import { CommentSection } from '@/components/pbc/comment-section';
 import { ItemStatusActions } from '@/components/pbc/item-status-actions';
@@ -90,61 +87,43 @@ export default async function ItemDetailPage({
 
   return (
     <div>
-      <Header
-        title={item.title}
-        description={`${engagement.title} · ${item.list.title}`}
-      />
+      <Breadcrumbs items={[
+        { label: 'PBC', href: '/pbc' },
+        { label: engagement.title, href: `/pbc/${workspaceId}` },
+        { label: item.list.title, href: `/pbc/${workspaceId}/lists/${listId}` },
+        { label: item.title },
+      ]} />
+
+      <div className="flex items-center justify-between border-b border-dataly-line bg-dataly-surface px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold text-dataly-ink">{item.title}</h1>
+          <p className="text-[13px] text-dataly-muted mt-0.5">
+            {engagement.title} · {item.list.title}
+          </p>
+        </div>
+        <Badge variant={cfg.variant}>{cfg.label}</Badge>
+      </div>
 
       <div className="p-6 space-y-6">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 text-sm text-slate-500 flex-wrap">
-          <Link href="/pbc" className="hover:text-slate-900 transition-colors">PBC</Link>
-          <ChevronRight className="h-3 w-3 shrink-0" />
-          <Link href={`/pbc/${workspaceId}`} className="hover:text-slate-900 transition-colors truncate max-w-[120px]">
-            {engagement.title}
-          </Link>
-          <ChevronRight className="h-3 w-3 shrink-0" />
-          <Link href={`/pbc/${workspaceId}/lists/${listId}`} className="hover:text-slate-900 transition-colors truncate max-w-[120px]">
-            {item.list.title}
-          </Link>
-          <ChevronRight className="h-3 w-3 shrink-0" />
-          <span className="text-slate-900 truncate max-w-[120px]">{item.title}</span>
-        </nav>
-
-        {/* Back */}
-        <Link
-          href={`/pbc/${workspaceId}/lists/${listId}`}
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors w-fit"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Zurück zur Liste
-        </Link>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main column */}
           <div className="lg:col-span-2 space-y-5">
             {/* Item Details Card */}
             <Card>
               <CardContent className="py-5 space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">{item.title}</h2>
-                    {item.description && (
-                      <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-                  <Badge variant={cfg.variant} className="shrink-0">{cfg.label}</Badge>
-                </div>
+                {item.description && (
+                  <p className="text-sm text-dataly-slate whitespace-pre-wrap">
+                    {item.description}
+                  </p>
+                )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-dataly-line">
                   {item.dueDate && (
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
+                      <Calendar className="h-4 w-4 text-dataly-muted shrink-0" />
                       <div>
-                        <p className="text-xs text-slate-400">Fällig am</p>
-                        <p className="text-sm text-slate-700">
+                        <p className="text-xs text-dataly-muted">Fällig am</p>
+                        <p className="text-sm text-dataly-ink">
                           {new Date(item.dueDate).toLocaleDateString('de-DE', {
                             day: '2-digit',
                             month: 'long',
@@ -157,17 +136,16 @@ export default async function ItemDetailPage({
 
                   {item.assignedTo && (
                     <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-slate-400 shrink-0" />
+                      <User className="h-4 w-4 text-dataly-muted shrink-0" />
                       <div>
-                        <p className="text-xs text-slate-400">Zugewiesen an</p>
-                        <p className="text-sm text-slate-700">{item.assignedTo}</p>
+                        <p className="text-xs text-dataly-muted">Zugewiesen an</p>
+                        <p className="text-sm text-dataly-ink">{item.assignedTo}</p>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Status actions for WP team */}
-                <div className="pt-2 border-t border-slate-100">
+                <div className="pt-2 border-t border-dataly-line">
                   <ItemStatusActions itemId={itemId} currentStatus={item.status} isWpUser={isWpUser} />
                 </div>
               </CardContent>
@@ -195,8 +173,8 @@ export default async function ItemDetailPage({
             <Card>
               <CardContent className="py-5 space-y-4">
                 <div className="flex items-center gap-2">
-                  <Paperclip className="h-4 w-4 text-slate-500" />
-                  <h3 className="text-sm font-semibold text-slate-700">
+                  <Paperclip className="h-4 w-4 text-dataly-slate" />
+                  <h3 className="text-sm font-semibold text-dataly-ink">
                     Dateien ({item.files.length})
                   </h3>
                 </div>
@@ -204,15 +182,15 @@ export default async function ItemDetailPage({
                 <FileUploader itemId={itemId} />
 
                 {filesWithUrls.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <div className="space-y-2 pt-2 border-t border-dataly-line">
                     {filesWithUrls.map((file) => (
                       <div key={file.id} className="flex items-center gap-2 group">
-                        <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                        <FileText className="h-4 w-4 text-dataly-muted shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-slate-700 truncate">
+                          <p className="text-xs font-medium text-dataly-ink truncate">
                             {file.filename}
                           </p>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-[10px] text-dataly-muted">
                             {formatBytes(file.sizeBytes)} · {file.uploadedBy}
                           </p>
                         </div>
@@ -221,10 +199,10 @@ export default async function ItemDetailPage({
                             href={file.downloadUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-slate-100"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-dataly-surface-subtle"
                             title="Herunterladen"
                           >
-                            <Download className="h-3.5 w-3.5 text-slate-500" />
+                            <Download className="h-3.5 w-3.5 text-dataly-slate" />
                           </a>
                         )}
                       </div>
@@ -237,28 +215,28 @@ export default async function ItemDetailPage({
             {/* Meta info */}
             <Card>
               <CardContent className="py-4 space-y-2">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Details</p>
-                <div className="space-y-1.5 text-xs text-slate-600">
+                <p className="text-xs font-semibold text-dataly-muted uppercase tracking-wide">Details</p>
+                <div className="space-y-1.5 text-xs text-dataly-slate">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Mandant</span>
+                    <span className="text-dataly-muted">Mandant</span>
                     <span className="font-medium truncate max-w-[140px] text-right">
                       {engagement.mandant.name}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Engagement</span>
+                    <span className="text-dataly-muted">Engagement</span>
                     <span className="font-medium truncate max-w-[140px] text-right">
                       {engagement.title}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Liste</span>
+                    <span className="text-dataly-muted">Liste</span>
                     <span className="font-medium truncate max-w-[140px] text-right">
                       {item.list.title}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Status</span>
+                    <span className="text-dataly-muted">Status</span>
                     <Badge variant={cfg.variant} className="text-[10px] px-1.5 py-0">
                       {cfg.label}
                     </Badge>

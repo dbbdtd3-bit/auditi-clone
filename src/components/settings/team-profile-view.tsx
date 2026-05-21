@@ -47,8 +47,8 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
   if (teams.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Users className="h-12 w-12 text-slate-300 mb-4" />
-        <p className="text-slate-500 text-sm">Noch keine Teams vorhanden.</p>
+        <Users className="h-12 w-12 text-dataly-line-strong mb-4" />
+        <p className="text-dataly-slate text-sm">Noch keine Teams vorhanden.</p>
         {isAdmin && (
           <Button className="mt-4" onClick={() => setNewTeamOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> Neues Team
@@ -72,7 +72,7 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
           <select
             value={selectedId}
             onChange={(e) => setSelectedId(e.target.value)}
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-dataly-line bg-dataly-surface px-3 py-2 text-sm font-medium text-dataly-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dataly-blue"
           >
             {teams.map((t) => (
               <option key={t.id} value={t.id}>
@@ -90,7 +90,7 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
       </div>
 
       {selected && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-dataly-line bg-dataly-surface shadow-sm overflow-hidden">
           {/* Team header */}
           <div
             className="h-2 w-full"
@@ -99,11 +99,11 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
           <div className="p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">{selected.name}</h2>
+                <h2 className="text-lg font-semibold text-dataly-ink">{selected.name}</h2>
                 {selected.description && (
-                  <p className="mt-1 text-sm text-slate-500">{selected.description}</p>
+                  <p className="mt-1 text-sm text-dataly-slate">{selected.description}</p>
                 )}
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-dataly-muted">
                   Akzentfarbe: {TEAM_COLOR_LABEL[selected.accentColor] ?? selected.accentColor}
                 </p>
               </div>
@@ -118,38 +118,38 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
 
             {/* Members */}
             <div className="mt-6">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-dataly-muted mb-3">
                 Mitglieder ({selected.members.length})
               </p>
               <div className="space-y-2">
                 {selected.members.map((m) => (
                   <div
                     key={m.id}
-                    className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-4 py-2.5"
+                    className="flex items-center justify-between rounded-lg border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5"
                   >
                     <div>
-                      <p className="text-sm font-medium text-slate-800">{m.user.name}</p>
-                      <p className="text-xs text-slate-500">{m.user.email}</p>
+                      <p className="text-sm font-medium text-dataly-ink">{m.user.name}</p>
+                      <p className="text-xs text-dataly-slate">{m.user.email}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">
                         {ROLE_LABEL[m.user.role] ?? m.user.role}
                       </Badge>
                       {m.user.id === currentUserId && (
-                        <Badge className="text-xs bg-blue-100 text-blue-700 border-0">Ich</Badge>
+                        <Badge className="text-xs bg-dataly-info-soft text-dataly-blue border-0">Ich</Badge>
                       )}
                     </div>
                   </div>
                 ))}
                 {selected.members.length === 0 && (
-                  <p className="text-sm text-slate-400 px-1">Keine Mitglieder.</p>
+                  <p className="text-sm text-dataly-muted px-1">Keine Mitglieder.</p>
                 )}
               </div>
             </div>
 
             {/* Admin: Delete Team */}
             {isAdmin && (
-              <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <div className="mt-6 pt-4 border-t border-dataly-line flex justify-end">
                 <DeleteTeamButton
                   teamId={selected.id}
                   teamName={selected.name}
@@ -210,7 +210,7 @@ function ColorPicker({
           onClick={() => setColor(c)}
           className={cn(
             'h-5 w-5 rounded-full border-2 transition-transform hover:scale-110',
-            current === c ? 'border-slate-800 scale-110' : 'border-transparent'
+            current === c ? 'border-dataly-ink scale-110' : 'border-transparent'
           )}
           style={{ backgroundColor: TEAM_COLOR_HEX[c] }}
         />

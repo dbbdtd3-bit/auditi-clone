@@ -101,13 +101,13 @@ export function AuditLogTable() {
         </NativeSelect>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-lg border border-dataly-line bg-dataly-surface overflow-hidden">
         {loading ? (
-          <div className="flex justify-center py-12 text-slate-400">
+          <div className="flex justify-center py-12 text-dataly-muted">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         ) : entries.length === 0 ? (
-          <p className="text-center text-sm text-slate-500 py-12">Keine Einträge gefunden.</p>
+          <p className="text-center text-sm text-dataly-slate py-12">Keine Einträge gefunden.</p>
         ) : (
           <Table>
             <TableHeader>
@@ -122,7 +122,7 @@ export function AuditLogTable() {
             <TableBody>
               {entries.map((entry) => (
                 <TableRow key={entry.id} className={entry.undone ? 'opacity-50' : ''}>
-                  <TableCell className="text-xs text-slate-500 whitespace-nowrap">
+                  <TableCell className="text-xs text-dataly-muted whitespace-nowrap">
                     {new Date(entry.createdAt).toLocaleString('de-DE', {
                       dateStyle: 'short',
                       timeStyle: 'short',
@@ -134,18 +134,18 @@ export function AuditLogTable() {
                         {ACTION_LABELS[entry.action] ?? entry.action}
                       </Badge>
                       {entry.entityType && (
-                        <span className="text-xs text-slate-400">{entry.entityType}</span>
+                        <span className="text-xs text-dataly-muted">{entry.entityType}</span>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm text-slate-600">
+                  <TableCell className="text-sm text-dataly-slate">
                     {entry.actorEmail ?? '—'}
                   </TableCell>
                   <TableCell>
                     {entry.undone && (
                       <Badge
                         variant="outline"
-                        className="text-xs text-slate-400 gap-1 border-slate-200"
+                        className="text-xs text-dataly-muted gap-1 border-dataly-line"
                       >
                         <RotateCcw className="h-3 w-3" />
                         Rückgängig

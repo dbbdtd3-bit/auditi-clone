@@ -4,10 +4,123 @@ import { prisma } from '@/lib/db';
 import { streamChatCompletion } from '@/lib/assistant/azure';
 import type { ChatMessage, AzureToolCall } from '@/lib/assistant/azure';
 import { ASSISTANT_TOOLS, executeTool } from '@/lib/assistant/tools';
+import type { ToolResult } from '@/lib/assistant/tools';
 
 const SYSTEM_PROMPT = `Du bist ein KI-Assistent für die Dataly-Prüfungsplattform. Du hilfst Wirtschaftsprüfern und deren Mandanten bei der Arbeit mit PBC-Listen (Prepared By Client), Saldenbestätigungen (SBA) und Engagements.
 
 Du sprichst Deutsch. Du bist präzise, professionell und hilfreich. Wenn du Daten aus der Plattform brauchst, nutze die verfügbaren Tools. Antworte immer auf Basis aktueller Daten aus der Plattform — erfinde keine Zahlen oder Namen.`;
+
+const TOOL_TIMEOUT_MS = 15_000;
+const FINAL_RESPONSE_TIMEOUT_MS = 30_000;
+
+type ExecutedToolCall = {
+  name: string;
+  args: Record<string, unknown>;
+  result: ToolResult;
+};
+
+type MandantResult = {
+  id: string;
+  name?: string | null;
+  legalName?: string | null;
+};
+
+type EngagementResult = {
+  title?: string | null;
+  fiscalYear?: number | null;
+  type?: string | null;
+  status?: string | null;
+};
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function extractEngagementMandantQuery(message: string): string | null {
+  const normalized = message.trim().replace(/\s+/g, ' ');
+  if (!/\bengagements?\b/i.test(normalized)) return null;
+
+  const match =
+    normalized.match(/\bengagements?\b.*?\b(?:von|fuer|fur|für|zu|bei)\s+(.+?)[?.!]*$/i) ??
+    normalized.match(/\b(?:von|fuer|fur|für|zu|bei)\s+(.+?)\s+\bengagements?\b/i);
+
+  return match?.[1]?.trim() || null;
+}
+
+function formatEngagementResponse(
+  query: string,
+  mandanten: MandantResult[],
+  engagements: EngagementResult[] | null,
+): string {
+  if (mandanten.length === 0) {
+    return `Ich habe keinen Mandanten zu "${query}" gefunden.`;
+  }
+
+  if (mandanten.length > 1 && !engagements) {
+    const rows = mandanten.map((m) => `- ${m.legalName || m.name || m.id}`).join('\n');
+    return `Ich habe mehrere passende Mandanten gefunden. Bitte wähle einen davon aus:\n\n${rows}`;
+  }
+
+  const mandant = mandanten[0];
+  const label = mandant.legalName || mandant.name || query;
+
+  if (!engagements || engagements.length === 0) {
+    return `Für ${label} habe ich keine Engagements gefunden.`;
+  }
+
+  const rows = engagements
+    .map((e) => {
+      const year = e.fiscalYear ? ` ${e.fiscalYear}` : '';
+      const type = e.type ? `, Typ: ${e.type}` : '';
+      const status = e.status ? `, Status: ${e.status}` : '';
+      return `- ${e.title || 'Engagement'}${year}${type}${status}`;
+    })
+    .join('\n');
+
+  return `Für ${label} habe ich diese Engagements gefunden:\n\n${rows}`;
+}
+
+function formatToolFallbackResponse(message: string, executedTools: ExecutedToolCall[]): string {
+  const engagementQuery = extractEngagementMandantQuery(message);
+  const mandantTool = executedTools.find((tool) => tool.name === 'lookup_mandant');
+  const engagementTool = executedTools.find((tool) => tool.name === 'lookup_engagement');
+
+  if (engagementQuery && mandantTool?.result.success) {
+    return formatEngagementResponse(
+      engagementQuery,
+      asArray<MandantResult>(mandantTool.result.data),
+      engagementTool?.result.success ? asArray<EngagementResult>(engagementTool.result.data) : null,
+    );
+  }
+
+  const lastTool = executedTools.at(-1);
+  if (!lastTool) {
+    return 'Ich konnte die Anfrage nicht abschliessen, weil kein Tool-Ergebnis vorliegt.';
+  }
+
+  if (!lastTool.result.success) {
+    return `Beim Abrufen der Daten gab es ein Problem: ${lastTool.result.error ?? 'Unbekannter Fehler'}`;
+  }
+
+  const rows = asArray<Record<string, unknown>>(lastTool.result.data);
+  if (rows.length === 0) {
+    return 'Ich habe keine passenden Datensätze gefunden.';
+  }
+
+  return `Ich habe diese Daten gefunden:\n\n${JSON.stringify(lastTool.result.data, null, 2)}`;
+}
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser();
@@ -101,6 +214,63 @@ export async function POST(req: NextRequest) {
         // Thread-ID an Client senden
         ctrl.enqueue(encodeSSE('thread', { threadId: resolvedThreadId }));
 
+        const directEngagementQuery = extractEngagementMandantQuery(message);
+        if (directEngagementQuery) {
+          ctrl.enqueue(encodeSSE('tool_call', { name: 'lookup_mandant' }));
+          const mandantResult = await withTimeout(
+            executeTool('lookup_mandant', { query: directEngagementQuery }, user),
+            TOOL_TIMEOUT_MS,
+            'Die Mandantensuche hat zu lange gedauert.',
+          );
+          await prisma.assistantMessage.create({
+            data: {
+              threadId: resolvedThreadId,
+              role: 'tool',
+              content: JSON.stringify(mandantResult.success ? mandantResult.data : { error: mandantResult.error }),
+            },
+          });
+
+          const mandanten = mandantResult.success ? asArray<MandantResult>(mandantResult.data) : [];
+          let engagements: EngagementResult[] | null = null;
+
+          if (mandanten.length === 1) {
+            ctrl.enqueue(encodeSSE('tool_call', { name: 'lookup_engagement' }));
+            const engagementResult = await withTimeout(
+              executeTool('lookup_engagement', { mandantId: mandanten[0].id }, user),
+              TOOL_TIMEOUT_MS,
+              'Die Engagementsuche hat zu lange gedauert.',
+            );
+            await prisma.assistantMessage.create({
+              data: {
+                threadId: resolvedThreadId,
+                role: 'tool',
+                content: JSON.stringify(engagementResult.success ? engagementResult.data : { error: engagementResult.error }),
+              },
+            });
+            engagements = engagementResult.success ? asArray<EngagementResult>(engagementResult.data) : [];
+          }
+
+          const directContent = mandantResult.success
+            ? formatEngagementResponse(directEngagementQuery, mandanten, engagements)
+            : `Beim Abrufen der Daten gab es ein Problem: ${mandantResult.error ?? 'Unbekannter Fehler'}`;
+
+          ctrl.enqueue(encodeSSE('token', { text: directContent }));
+          await prisma.assistantMessage.create({
+            data: {
+              threadId: resolvedThreadId,
+              role: 'assistant',
+              content: directContent,
+            },
+          });
+          await prisma.assistantThread.update({
+            where: { id: resolvedThreadId },
+            data: { updatedAt: new Date() },
+          });
+          ctrl.enqueue(encodeSSE('done', { threadId: resolvedThreadId }));
+          ctrl.close();
+          return;
+        }
+
         // Erste Completion (ggf. mit Tool-Calls)
         const assistantStream = await streamChatCompletion(messages, ASSISTANT_TOOLS);
         const reader = assistantStream.getReader();
@@ -145,6 +315,7 @@ export async function POST(req: NextRequest) {
               tool_calls: toolCalls,
             },
           ];
+          const executedTools: ExecutedToolCall[] = [];
 
           for (const tc of toolCalls) {
             ctrl.enqueue(encodeSSE('tool_call', { name: tc.function.name }));
@@ -156,7 +327,12 @@ export async function POST(req: NextRequest) {
               args = {};
             }
 
-            const result = await executeTool(tc.function.name, args, user);
+            const result = await withTimeout(
+              executeTool(tc.function.name, args, user),
+              TOOL_TIMEOUT_MS,
+              `Tool ${tc.function.name} hat zu lange gedauert.`,
+            );
+            executedTools.push({ name: tc.function.name, args, result });
             const resultStr = JSON.stringify(result.success ? result.data : { error: result.error });
 
             await prisma.assistantMessage.create({
@@ -176,23 +352,35 @@ export async function POST(req: NextRequest) {
           }
 
           // Finale Antwort nach Tool-Execution
-          const finalStream = await streamChatCompletion(toolMessages);
-          const finalReader = finalStream.getReader();
           let finalContent = '';
 
-          while (true) {
-            const { done, value } = await finalReader.read();
-            if (done) break;
+          try {
+            const finalStream = await withTimeout(
+              streamChatCompletion(toolMessages),
+              FINAL_RESPONSE_TIMEOUT_MS,
+              'Azure OpenAI hat nicht rechtzeitig auf das Tool-Ergebnis geantwortet.',
+            );
+            const finalReader = finalStream.getReader();
 
-            if (value.type === 'token') {
-              finalContent += value.text;
-              ctrl.enqueue(encodeSSE('token', { text: value.text }));
-            } else if (value.type === 'error') {
-              ctrl.enqueue(encodeSSE('error', { message: value.message }));
-              ctrl.enqueue(encodeSSE('done', { threadId: resolvedThreadId }));
-              ctrl.close();
-              return;
+            while (true) {
+              const { done, value } = await withTimeout(
+                finalReader.read(),
+                FINAL_RESPONSE_TIMEOUT_MS,
+                'Azure OpenAI hat den Antwortstream nicht abgeschlossen.',
+              );
+              if (done) break;
+
+              if (value.type === 'token') {
+                finalContent += value.text;
+                ctrl.enqueue(encodeSSE('token', { text: value.text }));
+              } else if (value.type === 'error') {
+                throw new Error(value.message);
+              }
             }
+          } catch (err) {
+            console.warn('Assistant final response fallback:', err);
+            finalContent = formatToolFallbackResponse(message, executedTools);
+            ctrl.enqueue(encodeSSE('token', { text: finalContent }));
           }
 
           await prisma.assistantMessage.create({

@@ -24,23 +24,82 @@ export type AzureTool = {
   };
 };
 
-const ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT ?? '';
-const API_KEY = process.env.AZURE_OPENAI_API_KEY ?? '';
-const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT ?? 'gpt-4o';
-const API_VERSION = process.env.AZURE_OPENAI_API_VERSION ?? '2025-04-01-preview';
-export const WHISPER_DEPLOYMENT = process.env.AZURE_WHISPER_DEPLOYMENT ?? '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
+const OPENAI_MODEL = process.env.OPENAI_MODEL ?? process.env.OPENAI_RESPONSES_MODEL ?? '';
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/+$/, '');
 
-function endpointOrigin(): string {
-  if (!ENDPOINT) return '';
+const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT ?? '';
+const AZURE_API_KEY = process.env.AZURE_OPENAI_API_KEY ?? '';
+const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT ?? '';
+const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION ?? '2025-04-01-preview';
+
+const DEFAULT_MODEL = 'gpt-4o';
+
+export const WHISPER_DEPLOYMENT =
+  process.env.OPENAI_WHISPER_MODEL ?? process.env.AZURE_WHISPER_DEPLOYMENT ?? '';
+
+type ProviderConfig = {
+  label: string;
+  model: string;
+  url: string;
+  headers: Record<string, string>;
+};
+
+function endpointOrigin(endpoint: string): string {
+  if (!endpoint) return '';
   try {
-    return new URL(ENDPOINT).origin;
+    return new URL(endpoint).origin;
   } catch {
-    return ENDPOINT.split('/openai')[0].replace(/\/$/, '');
+    return endpoint.split('/openai')[0].replace(/\/$/, '');
   }
 }
 
-function responsesUrl() {
-  return `${endpointOrigin()}/openai/responses?api-version=${API_VERSION}`;
+function azureResponsesUrl() {
+  return `${endpointOrigin(AZURE_ENDPOINT)}/openai/responses?api-version=${AZURE_API_VERSION}`;
+}
+
+function openAiResponsesUrl() {
+  return `${OPENAI_BASE_URL}/responses`;
+}
+
+function getProviderConfig(): ProviderConfig | null {
+  if (OPENAI_API_KEY) {
+    return {
+      label: 'OpenAI',
+      model: OPENAI_MODEL || AZURE_DEPLOYMENT || DEFAULT_MODEL,
+      url: openAiResponsesUrl(),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+    };
+  }
+
+  if (AZURE_ENDPOINT && AZURE_API_KEY) {
+    return {
+      label: 'Azure OpenAI',
+      model: AZURE_DEPLOYMENT || DEFAULT_MODEL,
+      url: azureResponsesUrl(),
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': AZURE_API_KEY,
+      },
+    };
+  }
+
+  if (AZURE_API_KEY && !AZURE_ENDPOINT) {
+    return {
+      label: 'OpenAI',
+      model: OPENAI_MODEL || AZURE_DEPLOYMENT || DEFAULT_MODEL,
+      url: openAiResponsesUrl(),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${AZURE_API_KEY}`,
+      },
+    };
+  }
+
+  return null;
 }
 
 function toResponsesInput(messages: ChatMessage[]): { instructions: string | null; input: unknown[] } {
@@ -91,10 +150,12 @@ export async function streamChatCompletion(
   messages: ChatMessage[],
   tools?: AzureTool[],
 ): Promise<ReadableStream<StreamChunk>> {
-  if (!ENDPOINT || !API_KEY) {
+  const provider = getProviderConfig();
+
+  if (!provider) {
     return new ReadableStream({
       start(ctrl) {
-        ctrl.enqueue({ type: 'error', message: 'Azure OpenAI ist noch nicht konfiguriert. Bitte die API-Schlüssel in der .env eintragen.' });
+        ctrl.enqueue({ type: 'error', message: 'OpenAI ist noch nicht konfiguriert. Bitte OPENAI_API_KEY in der .env eintragen.' });
         ctrl.enqueue({ type: 'done' });
         ctrl.close();
       },
@@ -104,7 +165,7 @@ export async function streamChatCompletion(
   const { instructions, input } = toResponsesInput(messages);
 
   const body: Record<string, unknown> = {
-    model: DEPLOYMENT,
+    model: provider.model,
     input,
     stream: true,
     max_output_tokens: 4096,
@@ -117,12 +178,9 @@ export async function streamChatCompletion(
 
   let response: Response;
   try {
-    response = await fetch(responsesUrl(), {
+    response = await fetch(provider.url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': API_KEY,
-      },
+      headers: provider.headers,
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -140,7 +198,7 @@ export async function streamChatCompletion(
     const text = await response.text().catch(() => '');
     return new ReadableStream({
       start(ctrl) {
-        ctrl.enqueue({ type: 'error', message: `Azure Fehler ${response.status}: ${text}` });
+        ctrl.enqueue({ type: 'error', message: `${provider.label} Fehler ${response.status}: ${text}` });
         ctrl.enqueue({ type: 'done' });
         ctrl.close();
       },
@@ -205,7 +263,7 @@ export async function streamChatCompletion(
               parsed.type === 'response.incomplete'
             ) {
               if (parsed.type === 'response.failed') {
-                ctrl.enqueue({ type: 'error', message: parsed.response?.error?.message ?? 'Azure-Fehler' });
+                ctrl.enqueue({ type: 'error', message: parsed.response?.error?.message ?? `${provider.label}-Fehler` });
               }
               const calls = Object.values(functionCalls);
               if (calls.length > 0) {
@@ -235,14 +293,16 @@ export async function nonStreamChatCompletion(
   messages: ChatMessage[],
   tools?: AzureTool[],
 ): Promise<{ content: string | null; tool_calls?: AzureToolCall[] }> {
-  if (!ENDPOINT || !API_KEY) {
-    return { content: 'Azure OpenAI ist noch nicht konfiguriert.' };
+  const provider = getProviderConfig();
+
+  if (!provider) {
+    return { content: 'OpenAI ist noch nicht konfiguriert.' };
   }
 
   const { instructions, input } = toResponsesInput(messages);
 
   const body: Record<string, unknown> = {
-    model: DEPLOYMENT,
+    model: provider.model,
     input,
     max_output_tokens: 4096,
   };
@@ -252,15 +312,15 @@ export async function nonStreamChatCompletion(
     body.tool_choice = 'auto';
   }
 
-  const res = await fetch(responsesUrl(), {
+  const res = await fetch(provider.url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
+    headers: provider.headers,
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const t = await res.text().catch(() => '');
-    throw new Error(`Azure Fehler ${res.status}: ${t}`);
+    throw new Error(`${provider.label} Fehler ${res.status}: ${t}`);
   }
 
   const json = await res.json();

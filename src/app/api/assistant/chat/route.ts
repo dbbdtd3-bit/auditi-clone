@@ -94,8 +94,8 @@ export async function POST(req: NextRequest) {
         ctrl.enqueue(encodeSSE('thread', { threadId: resolvedThreadId }));
 
         // Erste Completion (ggf. mit Tool-Calls)
-        const azureStream = await streamChatCompletion(messages, ASSISTANT_TOOLS);
-        const reader = azureStream.getReader();
+        const assistantStream = await streamChatCompletion(messages, ASSISTANT_TOOLS);
+        const reader = assistantStream.getReader();
 
         while (true) {
           const { done, value } = await reader.read();

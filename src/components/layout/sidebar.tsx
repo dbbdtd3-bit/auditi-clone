@@ -25,6 +25,9 @@ const navItems: NavItem[] = [
   { label: 'Engagements', href: '/engagements', icon: Briefcase, wpOnly: true },
   { label: 'Saldenbestätigungen', href: '/sba', icon: Mail },
   { label: 'Dokumentenaustausch', href: '/pbc', icon: FolderOpen },
+];
+
+const bottomNavItems: NavItem[] = [
   { label: 'Einstellungen', href: '/settings', icon: Settings, wpOnly: true },
 ];
 
@@ -39,32 +42,40 @@ export function Sidebar({ role }: SidebarProps) {
   const isWp = WP_ROLES.includes(role ?? '');
 
   const visibleItems = navItems.filter((item) => !item.wpOnly || isWp);
+  const visibleBottomItems = bottomNavItems.filter((item) => !item.wpOnly || isWp);
+
+  function renderNavItem(item: NavItem) {
+    const Icon = item.icon;
+    const isActive =
+      pathname === item.href || pathname.startsWith(item.href + '/');
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={cn(
+          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors border-l-2',
+          isActive
+            ? 'bg-dataly-surface-subtle text-dataly-navy border-dataly-blue'
+            : 'text-dataly-slate border-transparent hover:bg-dataly-surface-subtle hover:text-dataly-ink'
+        )}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        {item.label}
+      </Link>
+    );
+  }
 
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-dataly-line bg-dataly-surface">
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {visibleItems.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + '/');
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors border-l-2',
-                isActive
-                  ? 'bg-dataly-surface-subtle text-dataly-navy border-dataly-blue'
-                  : 'text-dataly-slate border-transparent hover:bg-dataly-surface-subtle hover:text-dataly-ink'
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {item.label}
-            </Link>
-          );
-        })}
+        {visibleItems.map(renderNavItem)}
       </nav>
+      {visibleBottomItems.length > 0 && (
+        <nav className="border-t border-dataly-line px-2 pb-3 pt-3 space-y-0.5">
+          {visibleBottomItems.map(renderNavItem)}
+        </nav>
+      )}
     </aside>
   );
 }

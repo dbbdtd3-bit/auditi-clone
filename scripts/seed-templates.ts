@@ -59,6 +59,51 @@ const TEMPLATES = [
       { title: 'Verträge zu geprüften Sachverhalten', sortOrder: 5 },
     ],
   },
+  {
+    name: 'Banken und Finanzierung',
+    description: 'Bank-, Darlehens- und Sicherheitenunterlagen für Abschlussprüfung und Reviews',
+    category: 'FINANZIERUNG',
+    isBuiltIn: true,
+    items: [
+      { title: 'Bankbestätigungen zum Stichtag', sortOrder: 0 },
+      { title: 'Kontoauszüge aller Bankkonten zum Stichtag', sortOrder: 1 },
+      { title: 'Darlehensverträge inklusive Nachträge', sortOrder: 2 },
+      { title: 'Tilgungspläne und Zinsabrechnungen', sortOrder: 3 },
+      { title: 'Sicherheitenverträge / Bürgschaften', sortOrder: 4 },
+      { title: 'Leasingverträge und Restwertübersichten', sortOrder: 5 },
+      { title: 'Covenant-Berechnungen und Bankkorrespondenz', sortOrder: 6 },
+    ],
+  },
+  {
+    name: 'Lohn und Personal',
+    description: 'Personal- und Payroll-Unterlagen für Jahresabschluss und Plausibilisierung',
+    category: 'PERSONAL',
+    isBuiltIn: true,
+    items: [
+      { title: 'Mitarbeiterliste zum Stichtag', sortOrder: 0 },
+      { title: 'Lohnjournale für das Geschäftsjahr', sortOrder: 1 },
+      { title: 'Gehaltsabrechnungen Stichproben', sortOrder: 2 },
+      { title: 'Arbeitsverträge und Nachträge für Stichproben', sortOrder: 3 },
+      { title: 'Urlaubs- und Überstundenrückstellungen', sortOrder: 4 },
+      { title: 'Sozialversicherungsnachweise', sortOrder: 5 },
+      { title: 'Tantiemen-, Bonus- und Provisionsvereinbarungen', sortOrder: 6 },
+    ],
+  },
+  {
+    name: 'Steuern und Abgaben',
+    description: 'Steuerliche Nachweise, Bescheide und Abstimmungen für die Prüfung',
+    category: 'STEUERN',
+    isBuiltIn: true,
+    items: [
+      { title: 'Körperschaftsteuer- und Gewerbesteuerbescheide', sortOrder: 0 },
+      { title: 'Umsatzsteuerjahreserklärung und Voranmeldungen', sortOrder: 1 },
+      { title: 'Lohnsteuer-Anmeldungen', sortOrder: 2 },
+      { title: 'Steuerrückstellungsberechnung', sortOrder: 3 },
+      { title: 'Überleitungsrechnung Handelsbilanz / Steuerbilanz', sortOrder: 4 },
+      { title: 'Korrespondenz mit Finanzbehörden', sortOrder: 5 },
+      { title: 'Offene Betriebsprüfungen und Feststellungen', sortOrder: 6 },
+    ],
+  },
 ];
 
 async function main() {

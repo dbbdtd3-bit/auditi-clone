@@ -47,15 +47,21 @@ export async function POST(req: NextRequest) {
     take: 20,
   });
 
-  const historyMessages: ChatMessage[] = history.map((m) => {
+  const historyMessages: ChatMessage[] = history.flatMap((m) => {
+    if (m.role === 'tool') return [];
+
     const msg: ChatMessage = {
       role: m.role as ChatMessage['role'],
       content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
     };
-    if (m.toolCalls) {
+
+    if (m.toolCalls && msg.content) {
       msg.tool_calls = m.toolCalls as unknown as AzureToolCall[];
     }
-    return msg;
+
+    if (m.toolCalls && !msg.content) return [];
+
+    return [msg];
   });
 
   // Neue User-Nachricht in DB speichern
@@ -159,7 +165,7 @@ export async function POST(req: NextRequest) {
             toolMessages.push({
               role: 'tool',
               content: resultStr,
-              tool_call_id: tc.id,
+              tool_call_id: tc.call_id ?? tc.id,
               name: tc.function.name,
             });
           }

@@ -9,6 +9,7 @@ export type ChatMessage = {
 export type AzureToolCall = {
   id: string;
   type: 'function';
+  call_id?: string;
   function: {
     name: string;
     arguments: string;
@@ -137,21 +138,23 @@ function toResponsesInput(messages: ChatMessage[]): { instructions: string | nul
           input.push({ role: 'assistant', content: msg.content });
         }
         for (const tc of msg.tool_calls) {
-          input.push({
+          const functionCall: Record<string, unknown> = {
             type: 'function_call',
-            id: tc.id,
-            call_id: tc.id,
+            call_id: tc.call_id ?? tc.id,
             name: tc.function.name,
             arguments: tc.function.arguments,
-          });
+          };
+          if (tc.id.startsWith('fc')) functionCall.id = tc.id;
+          input.push(functionCall);
         }
       } else {
         input.push({ role: 'assistant', content: msg.content ?? '' });
       }
     } else if (msg.role === 'tool') {
+      if (!msg.tool_call_id) continue;
       input.push({
         type: 'function_call_output',
-        call_id: msg.tool_call_id ?? '',
+        call_id: msg.tool_call_id,
         output: msg.content ?? '',
       });
     }
@@ -231,7 +234,7 @@ export async function streamChatCompletion(
 
   return new ReadableStream<StreamChunk>({
     async pull(ctrl) {
-      const functionCalls: Record<string, { callId: string; name: string; args: string }> = {};
+      const functionCalls: Record<string, { id: string; callId: string; name: string; args: string }> = {};
       let buffer = '';
 
       while (true) {
@@ -242,8 +245,9 @@ export async function streamChatCompletion(
             ctrl.enqueue({
               type: 'tool_calls',
               tool_calls: calls.map((c) => ({
-                id: c.callId,
+                id: c.id,
                 type: 'function' as const,
+                call_id: c.callId,
                 function: { name: c.name, arguments: c.args },
               })),
             });
@@ -268,6 +272,7 @@ export async function streamChatCompletion(
             } else if (parsed.type === 'response.output_item.added' && parsed.item?.type === 'function_call') {
               const item = parsed.item;
               functionCalls[item.id] = {
+                id: item.id,
                 callId: item.call_id ?? item.id,
                 name: item.name ?? '',
                 args: item.arguments ?? '',
@@ -291,8 +296,9 @@ export async function streamChatCompletion(
                 ctrl.enqueue({
                   type: 'tool_calls',
                   tool_calls: calls.map((c) => ({
-                    id: c.callId,
+                    id: c.id,
                     type: 'function' as const,
+                    call_id: c.callId,
                     function: { name: c.name, arguments: c.args },
                   })),
                 });
@@ -359,8 +365,9 @@ export async function nonStreamChatCompletion(
       }
     } else if (item.type === 'function_call') {
       tool_calls.push({
-        id: item.call_id ?? item.id,
+        id: item.id,
         type: 'function',
+        call_id: item.call_id ?? item.id,
         function: { name: item.name, arguments: item.arguments },
       });
     }

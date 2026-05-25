@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
     async start(ctrl) {
       let assistantContent = '';
       let toolCalls: AzureToolCall[] | undefined;
+      let assistantResponseId: string | undefined;
       let assistantResponseItems: Record<string, unknown>[] | undefined;
 
       try {
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
             ctrl.enqueue(encodeSSE('token', { text: value.text }));
           } else if (value.type === 'tool_calls') {
             toolCalls = value.tool_calls;
+            assistantResponseId = value.response_id;
             assistantResponseItems = value.response_items;
           } else if (value.type === 'error') {
             ctrl.enqueue(encodeSSE('error', { message: value.message }));
@@ -135,10 +137,10 @@ export async function POST(req: NextRequest) {
           });
 
           const toolMessages: ChatMessage[] = [
-            ...messages,
             {
               role: 'assistant',
               content: assistantContent || null,
+              previous_response_id: assistantResponseId,
               response_items: assistantResponseItems,
               tool_calls: toolCalls,
             },

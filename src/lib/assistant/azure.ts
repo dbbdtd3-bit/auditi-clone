@@ -1,6 +1,7 @@
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | null;
+  previous_response_id?: string;
   response_items?: Record<string, unknown>[];
   tool_calls?: AzureToolCall[];
   tool_call_id?: string;
@@ -132,11 +133,21 @@ function toResponsesTools(tools?: AzureTool[]): ResponsesTool[] | undefined {
   }));
 }
 
-function toResponsesInput(messages: ChatMessage[]): { instructions: string | null; input: unknown[] } {
+function toResponsesInput(messages: ChatMessage[]): {
+  instructions: string | null;
+  input: unknown[];
+  previous_response_id: string | null;
+} {
   let instructions: string | null = null;
+  let previousResponseId: string | null = null;
   const input: unknown[] = [];
 
   for (const msg of messages) {
+    if (msg.previous_response_id) {
+      previousResponseId = msg.previous_response_id;
+      continue;
+    }
+
     if (msg.role === 'system') {
       instructions = msg.content;
     } else if (msg.role === 'user') {
@@ -174,7 +185,7 @@ function toResponsesInput(messages: ChatMessage[]): { instructions: string | nul
     }
   }
 
-  return { instructions, input };
+  return { instructions, input, previous_response_id: previousResponseId };
 }
 
 function toChatMessages(messages: ChatMessage[]): unknown[] {
@@ -218,7 +229,12 @@ function toChatMessages(messages: ChatMessage[]): unknown[] {
 
 export type StreamChunk =
   | { type: 'token'; text: string }
-  | { type: 'tool_calls'; tool_calls: AzureToolCall[]; response_items?: Record<string, unknown>[] }
+  | {
+      type: 'tool_calls';
+      tool_calls: AzureToolCall[];
+      response_id?: string;
+      response_items?: Record<string, unknown>[];
+    }
   | { type: 'done' }
   | { type: 'error'; message: string };
 
@@ -369,7 +385,7 @@ export async function streamChatCompletion(
     return streamChatCompletions(provider, messages, tools);
   }
 
-  const { instructions, input } = toResponsesInput(messages);
+  const { instructions, input, previous_response_id } = toResponsesInput(messages);
 
   const body: Record<string, unknown> = {
     model: provider.model,
@@ -378,6 +394,7 @@ export async function streamChatCompletion(
     max_output_tokens: 4096,
   };
   if (instructions) body.instructions = instructions;
+  if (previous_response_id) body.previous_response_id = previous_response_id;
   const responsesTools = toResponsesTools(tools);
   if (responsesTools) {
     body.tools = responsesTools;
@@ -421,6 +438,7 @@ export async function streamChatCompletion(
       const functionCalls: Record<string, { id: string; callId: string; name: string; args: string }> = {};
       const responseItems: Record<string, Record<string, unknown>> = {};
       const responseItemOrder: string[] = [];
+      let responseId: string | undefined;
       let buffer = '';
 
       const orderedResponseItems = () =>
@@ -435,6 +453,7 @@ export async function streamChatCompletion(
           if (calls.length > 0) {
             ctrl.enqueue({
               type: 'tool_calls',
+              response_id: responseId,
               response_items: orderedResponseItems(),
               tool_calls: calls.map((c) => ({
                 id: c.id,
@@ -458,6 +477,8 @@ export async function streamChatCompletion(
           if (!dataLine) continue;
           try {
             const parsed = JSON.parse(dataLine.slice(6));
+            if (parsed.response?.id) responseId = parsed.response.id;
+            if (parsed.response_id) responseId = parsed.response_id;
 
             if (parsed.type === 'response.output_text.delta') {
               ctrl.enqueue({ type: 'token', text: parsed.delta ?? '' });
@@ -498,6 +519,7 @@ export async function streamChatCompletion(
               if (calls.length > 0) {
                 ctrl.enqueue({
                   type: 'tool_calls',
+                  response_id: responseId,
                   response_items: orderedResponseItems(),
                   tool_calls: calls.map((c) => ({
                     id: c.id,
@@ -568,7 +590,7 @@ export async function nonStreamChatCompletion(
     };
   }
 
-  const { instructions, input } = toResponsesInput(messages);
+  const { instructions, input, previous_response_id } = toResponsesInput(messages);
 
   const body: Record<string, unknown> = {
     model: provider.model,
@@ -576,6 +598,7 @@ export async function nonStreamChatCompletion(
     max_output_tokens: 4096,
   };
   if (instructions) body.instructions = instructions;
+  if (previous_response_id) body.previous_response_id = previous_response_id;
   const responsesTools = toResponsesTools(tools);
   if (responsesTools) {
     body.tools = responsesTools;

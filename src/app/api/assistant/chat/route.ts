@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthUser, unauthorized } from '@/lib/require-auth';
 import { prisma } from '@/lib/db';
-import { streamChatCompletion, nonStreamChatCompletion } from '@/lib/assistant/azure';
+import { streamChatCompletion } from '@/lib/assistant/azure';
 import type { ChatMessage, AzureToolCall } from '@/lib/assistant/azure';
 import { ASSISTANT_TOOLS, executeTool } from '@/lib/assistant/tools';
 
@@ -173,13 +173,24 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Finale Antwort nach Tool-Execution (kein Stream — einfacher)
-          const final = await nonStreamChatCompletion(toolMessages);
-          const finalContent = final.content ?? '';
+          // Finale Antwort nach Tool-Execution
+          const finalStream = await streamChatCompletion(toolMessages);
+          const finalReader = finalStream.getReader();
+          let finalContent = '';
 
-          // Zeichenweise simulierter Stream für UX
-          for (const char of finalContent) {
-            ctrl.enqueue(encodeSSE('token', { text: char }));
+          while (true) {
+            const { done, value } = await finalReader.read();
+            if (done) break;
+
+            if (value.type === 'token') {
+              finalContent += value.text;
+              ctrl.enqueue(encodeSSE('token', { text: value.text }));
+            } else if (value.type === 'error') {
+              ctrl.enqueue(encodeSSE('error', { message: value.message }));
+              ctrl.enqueue(encodeSSE('done', { threadId: resolvedThreadId }));
+              ctrl.close();
+              return;
+            }
           }
 
           await prisma.assistantMessage.create({

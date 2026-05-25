@@ -41,6 +41,7 @@ export const WHISPER_DEPLOYMENT =
 
 type ProviderConfig = {
   label: string;
+  mode: 'chat' | 'responses';
   model: string;
   url: string;
   headers: Record<string, string>;
@@ -67,6 +68,10 @@ function azureResponsesUrl() {
   return `${endpointOrigin(AZURE_ENDPOINT)}/openai/responses?api-version=${AZURE_API_VERSION}`;
 }
 
+function azureChatCompletionsUrl() {
+  return `${endpointOrigin(AZURE_ENDPOINT)}/openai/deployments/${encodeURIComponent(AZURE_DEPLOYMENT)}/chat/completions?api-version=${AZURE_API_VERSION}`;
+}
+
 function openAiResponsesUrl() {
   return `${OPENAI_BASE_URL}/responses`;
 }
@@ -75,8 +80,9 @@ function getProviderConfig(): ProviderConfig | null {
   if (AZURE_ENDPOINT && AZURE_API_KEY) {
     return {
       label: 'Azure OpenAI',
+      mode: 'chat',
       model: AZURE_DEPLOYMENT || OPENAI_MODEL || DEFAULT_MODEL,
-      url: azureResponsesUrl(),
+      url: azureChatCompletionsUrl(),
       headers: {
         'Content-Type': 'application/json',
         'api-key': AZURE_API_KEY,
@@ -87,6 +93,7 @@ function getProviderConfig(): ProviderConfig | null {
   if (OPENAI_API_KEY) {
     return {
       label: 'OpenAI',
+      mode: 'responses',
       model: OPENAI_MODEL || DEFAULT_MODEL,
       url: openAiResponsesUrl(),
       headers: {
@@ -99,6 +106,7 @@ function getProviderConfig(): ProviderConfig | null {
   if (AZURE_API_KEY && !AZURE_ENDPOINT) {
     return {
       label: 'OpenAI',
+      mode: 'responses',
       model: OPENAI_MODEL || AZURE_DEPLOYMENT || DEFAULT_MODEL,
       url: openAiResponsesUrl(),
       headers: {
@@ -163,11 +171,177 @@ function toResponsesInput(messages: ChatMessage[]): { instructions: string | nul
   return { instructions, input };
 }
 
+function toChatMessages(messages: ChatMessage[]): unknown[] {
+  const output: unknown[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'tool') {
+      if (!msg.tool_call_id) continue;
+      output.push({
+        role: 'tool',
+        tool_call_id: msg.tool_call_id,
+        content: msg.content ?? '',
+      });
+      continue;
+    }
+
+    if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+      output.push({
+        role: 'assistant',
+        content: msg.content ?? null,
+        tool_calls: msg.tool_calls.map((tc) => ({
+          id: tc.call_id ?? tc.id,
+          type: 'function',
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          },
+        })),
+      });
+      continue;
+    }
+
+    output.push({
+      role: msg.role,
+      content: msg.content ?? '',
+    });
+  }
+
+  return output;
+}
+
 export type StreamChunk =
   | { type: 'token'; text: string }
   | { type: 'tool_calls'; tool_calls: AzureToolCall[] }
   | { type: 'done' }
   | { type: 'error'; message: string };
+
+async function streamChatCompletions(
+  provider: ProviderConfig,
+  messages: ChatMessage[],
+  tools?: AzureTool[],
+): Promise<ReadableStream<StreamChunk>> {
+  const body: Record<string, unknown> = {
+    messages: toChatMessages(messages),
+    stream: true,
+  };
+  if (tools && tools.length > 0) {
+    body.tools = tools;
+    body.tool_choice = 'auto';
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(provider.url, {
+      method: 'POST',
+      headers: provider.headers,
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Netzwerkfehler';
+    return new ReadableStream({
+      start(ctrl) {
+        ctrl.enqueue({ type: 'error', message: msg });
+        ctrl.enqueue({ type: 'done' });
+        ctrl.close();
+      },
+    });
+  }
+
+  if (!response.ok || !response.body) {
+    const text = await response.text().catch(() => '');
+    return new ReadableStream({
+      start(ctrl) {
+        ctrl.enqueue({ type: 'error', message: `${provider.label} Fehler ${response.status}: ${text}` });
+        ctrl.enqueue({ type: 'done' });
+        ctrl.close();
+      },
+    });
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  return new ReadableStream<StreamChunk>({
+    async pull(ctrl) {
+      const functionCalls: Record<number, { id: string; name: string; args: string }> = {};
+      let buffer = '';
+
+      const enqueueToolCalls = () => {
+        const calls = Object.values(functionCalls).filter((c) => c.id && c.name);
+        if (calls.length > 0) {
+          ctrl.enqueue({
+            type: 'tool_calls',
+            tool_calls: calls.map((c) => ({
+              id: c.id,
+              type: 'function' as const,
+              call_id: c.id,
+              function: { name: c.name, arguments: c.args },
+            })),
+          });
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          enqueueToolCalls();
+          ctrl.enqueue({ type: 'done' });
+          ctrl.close();
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() ?? '';
+
+        for (const block of blocks) {
+          const dataLines = block
+            .split('\n')
+            .filter((line) => line.startsWith('data: '))
+            .map((line) => line.slice(6).trim());
+
+          for (const data of dataLines) {
+            if (!data || data === '[DONE]') {
+              enqueueToolCalls();
+              ctrl.enqueue({ type: 'done' });
+              ctrl.close();
+              return;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              const choice = parsed.choices?.[0];
+              const delta = choice?.delta;
+
+              if (delta?.content) {
+                ctrl.enqueue({ type: 'token', text: delta.content });
+              }
+
+              for (const tc of delta?.tool_calls ?? []) {
+                const index = tc.index ?? 0;
+                const current = functionCalls[index] ?? { id: '', name: '', args: '' };
+                if (tc.id) current.id = tc.id;
+                if (tc.function?.name) current.name += tc.function.name;
+                if (tc.function?.arguments) current.args += tc.function.arguments;
+                functionCalls[index] = current;
+              }
+
+              if (choice?.finish_reason === 'tool_calls') {
+                enqueueToolCalls();
+                ctrl.enqueue({ type: 'done' });
+                ctrl.close();
+                return;
+              }
+            } catch {
+              // partial JSON - skip
+            }
+          }
+        }
+      }
+    },
+  });
+}
 
 export async function streamChatCompletion(
   messages: ChatMessage[],
@@ -183,6 +357,10 @@ export async function streamChatCompletion(
         ctrl.close();
       },
     });
+  }
+
+  if (provider.mode === 'chat') {
+    return streamChatCompletions(provider, messages, tools);
   }
 
   const { instructions, input } = toResponsesInput(messages);
@@ -324,6 +502,44 @@ export async function nonStreamChatCompletion(
 
   if (!provider) {
     return { content: 'OpenAI ist noch nicht konfiguriert.' };
+  }
+
+  if (provider.mode === 'chat') {
+    const body: Record<string, unknown> = {
+      messages: toChatMessages(messages),
+    };
+    if (tools && tools.length > 0) {
+      body.tools = tools;
+      body.tool_choice = 'auto';
+    }
+
+    const res = await fetch(provider.url, {
+      method: 'POST',
+      headers: provider.headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      throw new Error(`${provider.label} Fehler ${res.status}: ${t}`);
+    }
+
+    const json = await res.json();
+    const message = json.choices?.[0]?.message;
+    const tool_calls = (message?.tool_calls ?? []).map((tc: AzureToolCall) => ({
+      id: tc.id,
+      type: 'function' as const,
+      call_id: tc.id,
+      function: {
+        name: tc.function.name,
+        arguments: tc.function.arguments,
+      },
+    }));
+
+    return {
+      content: message?.content ?? null,
+      tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
+    };
   }
 
   const { instructions, input } = toResponsesInput(messages);

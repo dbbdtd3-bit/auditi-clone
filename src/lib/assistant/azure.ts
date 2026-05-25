@@ -45,6 +45,14 @@ type ProviderConfig = {
   headers: Record<string, string>;
 };
 
+type ResponsesTool = {
+  type: 'function';
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  strict: false;
+};
+
 function endpointOrigin(endpoint: string): string {
   if (!endpoint) return '';
   try {
@@ -63,26 +71,26 @@ function openAiResponsesUrl() {
 }
 
 function getProviderConfig(): ProviderConfig | null {
-  if (OPENAI_API_KEY) {
-    return {
-      label: 'OpenAI',
-      model: OPENAI_MODEL || AZURE_DEPLOYMENT || DEFAULT_MODEL,
-      url: openAiResponsesUrl(),
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-    };
-  }
-
   if (AZURE_ENDPOINT && AZURE_API_KEY) {
     return {
       label: 'Azure OpenAI',
-      model: AZURE_DEPLOYMENT || DEFAULT_MODEL,
+      model: AZURE_DEPLOYMENT || OPENAI_MODEL || DEFAULT_MODEL,
       url: azureResponsesUrl(),
       headers: {
         'Content-Type': 'application/json',
         'api-key': AZURE_API_KEY,
+      },
+    };
+  }
+
+  if (OPENAI_API_KEY) {
+    return {
+      label: 'OpenAI',
+      model: OPENAI_MODEL || DEFAULT_MODEL,
+      url: openAiResponsesUrl(),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
     };
   }
@@ -100,6 +108,18 @@ function getProviderConfig(): ProviderConfig | null {
   }
 
   return null;
+}
+
+function toResponsesTools(tools?: AzureTool[]): ResponsesTool[] | undefined {
+  if (!tools || tools.length === 0) return undefined;
+
+  return tools.map((tool) => ({
+    type: 'function' as const,
+    name: tool.function.name,
+    description: tool.function.description,
+    parameters: tool.function.parameters,
+    strict: false,
+  }));
 }
 
 function toResponsesInput(messages: ChatMessage[]): { instructions: string | null; input: unknown[] } {
@@ -171,8 +191,9 @@ export async function streamChatCompletion(
     max_output_tokens: 4096,
   };
   if (instructions) body.instructions = instructions;
-  if (tools && tools.length > 0) {
-    body.tools = tools;
+  const responsesTools = toResponsesTools(tools);
+  if (responsesTools) {
+    body.tools = responsesTools;
     body.tool_choice = 'auto';
   }
 
@@ -307,8 +328,9 @@ export async function nonStreamChatCompletion(
     max_output_tokens: 4096,
   };
   if (instructions) body.instructions = instructions;
-  if (tools && tools.length > 0) {
-    body.tools = tools;
+  const responsesTools = toResponsesTools(tools);
+  if (responsesTools) {
+    body.tools = responsesTools;
     body.tool_choice = 'auto';
   }
 

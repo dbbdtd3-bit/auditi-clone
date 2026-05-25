@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
     async start(ctrl) {
       let assistantContent = '';
       let toolCalls: AzureToolCall[] | undefined;
+      let assistantResponseItems: Record<string, unknown>[] | undefined;
 
       try {
         // Thread-ID an Client senden
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
             ctrl.enqueue(encodeSSE('token', { text: value.text }));
           } else if (value.type === 'tool_calls') {
             toolCalls = value.tool_calls;
+            assistantResponseItems = value.response_items;
           } else if (value.type === 'error') {
             ctrl.enqueue(encodeSSE('error', { message: value.message }));
             ctrl.enqueue(encodeSSE('done', { threadId: resolvedThreadId }));
@@ -137,6 +139,7 @@ export async function POST(req: NextRequest) {
             {
               role: 'assistant',
               content: assistantContent || null,
+              response_items: assistantResponseItems,
               tool_calls: toolCalls,
             },
           ];

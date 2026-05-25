@@ -1,6 +1,7 @@
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | null;
+  response_items?: Record<string, unknown>[];
   tool_calls?: AzureToolCall[];
   tool_call_id?: string;
   name?: string;
@@ -80,9 +81,9 @@ function getProviderConfig(): ProviderConfig | null {
   if (AZURE_ENDPOINT && AZURE_API_KEY) {
     return {
       label: 'Azure OpenAI',
-      mode: 'chat',
+      mode: 'responses',
       model: AZURE_DEPLOYMENT || OPENAI_MODEL || DEFAULT_MODEL,
-      url: azureChatCompletionsUrl(),
+      url: azureResponsesUrl(),
       headers: {
         'Content-Type': 'application/json',
         'api-key': AZURE_API_KEY,
@@ -141,6 +142,11 @@ function toResponsesInput(messages: ChatMessage[]): { instructions: string | nul
     } else if (msg.role === 'user') {
       input.push({ role: 'user', content: msg.content ?? '' });
     } else if (msg.role === 'assistant') {
+      if (msg.response_items && msg.response_items.length > 0) {
+        input.push(...msg.response_items);
+        continue;
+      }
+
       if (msg.tool_calls && msg.tool_calls.length > 0) {
         if (msg.content) {
           input.push({ role: 'assistant', content: msg.content });
@@ -212,7 +218,7 @@ function toChatMessages(messages: ChatMessage[]): unknown[] {
 
 export type StreamChunk =
   | { type: 'token'; text: string }
-  | { type: 'tool_calls'; tool_calls: AzureToolCall[] }
+  | { type: 'tool_calls'; tool_calls: AzureToolCall[]; response_items?: Record<string, unknown>[] }
   | { type: 'done' }
   | { type: 'error'; message: string };
 
@@ -413,7 +419,14 @@ export async function streamChatCompletion(
   return new ReadableStream<StreamChunk>({
     async pull(ctrl) {
       const functionCalls: Record<string, { id: string; callId: string; name: string; args: string }> = {};
+      const responseItems: Record<string, Record<string, unknown>> = {};
+      const responseItemOrder: string[] = [];
       let buffer = '';
+
+      const orderedResponseItems = () =>
+        responseItemOrder
+          .map((id) => responseItems[id])
+          .filter(Boolean);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -422,6 +435,7 @@ export async function streamChatCompletion(
           if (calls.length > 0) {
             ctrl.enqueue({
               type: 'tool_calls',
+              response_items: orderedResponseItems(),
               tool_calls: calls.map((c) => ({
                 id: c.id,
                 type: 'function' as const,
@@ -447,8 +461,15 @@ export async function streamChatCompletion(
 
             if (parsed.type === 'response.output_text.delta') {
               ctrl.enqueue({ type: 'token', text: parsed.delta ?? '' });
+            } else if (parsed.type === 'response.output_item.added' && parsed.item?.type === 'reasoning') {
+              const item = parsed.item as Record<string, unknown>;
+              const id = String(item.id ?? parsed.output_index ?? responseItemOrder.length);
+              responseItems[id] = item;
+              responseItemOrder.push(id);
             } else if (parsed.type === 'response.output_item.added' && parsed.item?.type === 'function_call') {
               const item = parsed.item;
+              responseItems[item.id] = item;
+              responseItemOrder.push(item.id);
               functionCalls[item.id] = {
                 id: item.id,
                 callId: item.call_id ?? item.id,
@@ -458,9 +479,13 @@ export async function streamChatCompletion(
             } else if (parsed.type === 'response.function_call_arguments.delta') {
               const fc = functionCalls[parsed.item_id];
               if (fc) fc.args += parsed.delta ?? '';
+              const item = responseItems[parsed.item_id];
+              if (item) item.arguments = `${item.arguments ?? ''}${parsed.delta ?? ''}`;
             } else if (parsed.type === 'response.function_call_arguments.done') {
               const fc = functionCalls[parsed.item_id];
               if (fc) fc.args = parsed.arguments ?? fc.args;
+              const item = responseItems[parsed.item_id];
+              if (item) item.arguments = parsed.arguments ?? item.arguments;
             } else if (
               parsed.type === 'response.completed' ||
               parsed.type === 'response.failed' ||
@@ -473,6 +498,7 @@ export async function streamChatCompletion(
               if (calls.length > 0) {
                 ctrl.enqueue({
                   type: 'tool_calls',
+                  response_items: orderedResponseItems(),
                   tool_calls: calls.map((c) => ({
                     id: c.id,
                     type: 'function' as const,

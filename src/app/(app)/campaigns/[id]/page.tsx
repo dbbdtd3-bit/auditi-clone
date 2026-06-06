@@ -151,7 +151,11 @@ export default async function CampaignDetailPage({
             </div>
           </div>
 
-          <RequestsTable campaignId={id} requests={campaign.requests} />
+          <RequestsTable
+            campaignId={id}
+            campaignStatus={campaign.status}
+            requests={campaign.requests}
+          />
         </div>
       </div>
     </div>

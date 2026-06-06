@@ -13,9 +13,10 @@ interface DueDatePopoverProps {
   value: Date | null;
   onChange: (date: Date | null) => void;
   disabled?: boolean;
+  triggerClassName?: string;
 }
 
-export function DueDatePopover({ value, onChange, disabled }: DueDatePopoverProps) {
+export function DueDatePopover({ value, onChange, disabled, triggerClassName }: DueDatePopoverProps) {
   const [open, setOpen] = React.useState(false);
 
   function handleSelect(date: Date | undefined) {
@@ -36,16 +37,17 @@ export function DueDatePopover({ value, onChange, disabled }: DueDatePopoverProp
           disabled={disabled}
           className={cn(
             'justify-start text-left font-normal',
-            !value && 'text-slate-400'
+            !value && 'text-slate-400',
+            triggerClassName
           )}
         >
-          <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+          <CalendarIcon className="h-4 w-4 shrink-0" />
           <span className="flex-1">
             {value ? format(value, 'dd. MMM yyyy', { locale: de }) : 'Frist setzen'}
           </span>
           {value && (
             <X
-              className="h-3.5 w-3.5 ml-2 shrink-0 text-slate-400 hover:text-slate-700"
+              className="h-3.5 w-3.5 shrink-0 text-slate-400 hover:text-slate-700"
               onClick={handleClear}
             />
           )}

@@ -83,3 +83,32 @@
     background: color-mix(in srgb, var(--dataly-blue) 18%, transparent);
   }
 }
+
+@layer utilities {
+  .dataly-scrollbar {
+    scrollbar-color: rgb(var(--dataly-line-strong-rgb) / 0.9) transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  .dataly-scrollbar::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .dataly-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .dataly-scrollbar::-webkit-scrollbar-thumb {
+    background: rgb(var(--dataly-line-strong-rgb) / 0.9);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 9999px;
+  }
+
+  .dataly-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--dataly-slate-rgb) / 0.65);
+    background-clip: padding-box;
+  }
+}

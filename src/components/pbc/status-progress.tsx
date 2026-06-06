@@ -23,11 +23,11 @@ const SEGMENT_COLORS: Record<keyof StatusCounts, string> = {
 };
 
 const STATUS_ORDER: (keyof StatusCounts)[] = [
-  'ACCEPTED',
   'UPLOADED',
+  'ACCEPTED',
   'NEEDS_REVISION',
-  'OPEN',
   'REJECTED',
+  'OPEN',
 ];
 
 export function StatusProgress({ counts, total }: StatusProgressProps) {

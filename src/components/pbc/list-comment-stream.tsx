@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Send } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ListComment {
   id: string;
@@ -68,7 +69,12 @@ export function ListCommentStream({ listId, initialComments }: ListCommentStream
       {comments.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-4">Noch keine Bemerkungen.</p>
       ) : (
-        <div className="space-y-3">
+        <div
+          className={cn(
+            'space-y-3 pr-1',
+            comments.length >= 3 && 'max-h-[252px] overflow-y-auto dataly-scrollbar'
+          )}
+        >
           {comments.map((comment) => (
             <div key={comment.id} className="flex gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">

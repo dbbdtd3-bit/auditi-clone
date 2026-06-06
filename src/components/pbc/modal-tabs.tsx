@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ActivityStream } from './activity-stream';
+import { cn } from '@/lib/utils';
 
 interface Comment {
   id: string;
@@ -76,7 +77,12 @@ export function ModalTabs({ itemId, comments: initialComments, activities }: Pro
         {comments.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-4">Noch keine Kommentare.</p>
         ) : (
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <div
+            className={cn(
+              'space-y-2 pr-1',
+              comments.length >= 3 && 'max-h-[172px] overflow-y-auto dataly-scrollbar'
+            )}
+          >
             {comments.map((c) => (
               <div key={c.id} className="flex gap-2">
                 <div className="h-7 w-7 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-semibold text-slate-600">
@@ -114,7 +120,7 @@ export function ModalTabs({ itemId, comments: initialComments, activities }: Pro
       </TabsContent>
 
       <TabsContent value="activities" className="mt-3">
-        <div className="max-h-56 overflow-y-auto pr-1">
+        <div className="max-h-56 overflow-y-auto pr-1 dataly-scrollbar">
           <ActivityStream activities={activities.filter((a) => a.itemId === itemId || !a.itemId)} />
         </div>
       </TabsContent>

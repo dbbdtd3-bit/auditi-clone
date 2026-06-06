@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { FileDropzone } from './file-dropzone';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface PbcFile {
   id: string;
@@ -77,7 +78,12 @@ export function ModalFileList({ itemId, files: initialFiles, onRefresh }: Props)
       <FileDropzone itemId={itemId} onUploadDone={() => { onRefresh(); }} />
 
       {files.length > 0 && (
-        <div className="space-y-1.5">
+        <div
+          className={cn(
+            'space-y-1.5 pr-1',
+            files.length >= 3 && 'max-h-[178px] overflow-y-auto dataly-scrollbar'
+          )}
+        >
           {files.map((file) => (
             <div key={file.id} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
               <FileText className="h-4 w-4 text-slate-400 shrink-0" />

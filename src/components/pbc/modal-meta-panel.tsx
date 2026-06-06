@@ -67,12 +67,13 @@ export function ModalMetaPanel({ item, onUpdated }: Props) {
         </Select>
       </div>
 
-      <div className="space-y-3">
+      <div className="flex items-center gap-4">
         <Label className="text-xs text-slate-500">Frist</Label>
         <DueDatePopover
           value={item.dueDate ? new Date(item.dueDate) : null}
           onChange={(date) => patch({ dueDate: date ? date.toISOString() : null })}
           disabled={saving === 'dueDate'}
+          triggerClassName="h-9 w-fit px-3 text-xs"
         />
       </div>
 

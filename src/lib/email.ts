@@ -1,14 +1,30 @@
 import nodemailer from 'nodemailer';
 
+const SMTP_HOST = process.env.BREVO_SMTP_HOST ?? 'smtp-relay.brevo.com';
+const SMTP_PORT = Number(process.env.BREVO_SMTP_PORT ?? 587);
+const SMTP_USER = process.env.BREVO_SMTP_USERNAME ?? process.env.BREVO_LOGIN ?? '';
+const SMTP_PASSWORD = process.env.BREVO_SMTP_PASSWORD ?? process.env.BREVO_SMTP_KEY ?? '';
+const MAIL_FROM_ADDRESS = process.env.MAIL_FROM_ADDRESS ?? process.env.BREVO_LOGIN ?? '';
+const MAIL_FROM_NAME = process.env.MAIL_FROM_NAME ?? '';
+
 function createTransporter() {
   return nodemailer.createTransport({
-    host: 'smtp-relay.brevo.com',
-    port: 587,
+    host: SMTP_HOST,
+    port: SMTP_PORT,
     auth: {
-      user: process.env.BREVO_LOGIN!,
-      pass: process.env.BREVO_SMTP_KEY!,
+      user: SMTP_USER,
+      pass: SMTP_PASSWORD,
     },
   });
+}
+
+function isEmailConfigured() {
+  return Boolean(SMTP_USER && SMTP_PASSWORD && MAIL_FROM_ADDRESS);
+}
+
+function fromAddress(fallbackName: string) {
+  const displayName = MAIL_FROM_NAME || fallbackName;
+  return `"${displayName}" <${MAIL_FROM_ADDRESS}>`;
 }
 
 export interface ConfirmationEmailData {
@@ -63,7 +79,7 @@ function buildConfirmationHtml(data: ConfirmationEmailData): string {
 }
 
 export async function sendConfirmationEmail(data: ConfirmationEmailData): Promise<void> {
-  if (!process.env.BREVO_SMTP_KEY) {
+  if (!isEmailConfigured()) {
     console.log('[email] BREVO nicht konfiguriert — E-Mail-Versand übersprungen', {
       to: data.to,
       subject: `Saldenbestätigung zum ${data.balanceDate} — Bitte um Rückmeldung`,
@@ -73,7 +89,7 @@ export async function sendConfirmationEmail(data: ConfirmationEmailData): Promis
 
   const transporter = createTransporter();
   await transporter.sendMail({
-    from: `"${data.kanzleiName}" <${process.env.BREVO_LOGIN}>`,
+    from: fromAddress(data.kanzleiName),
     to: data.to,
     subject: `Saldenbestätigung zum ${data.balanceDate} — Bitte um Rückmeldung`,
     html: buildConfirmationHtml(data),
@@ -81,7 +97,7 @@ export async function sendConfirmationEmail(data: ConfirmationEmailData): Promis
 }
 
 export async function sendReminderEmail(data: ConfirmationEmailData): Promise<void> {
-  if (!process.env.BREVO_SMTP_KEY) {
+  if (!isEmailConfigured()) {
     console.log('[email] BREVO nicht konfiguriert — E-Mail-Versand übersprungen', {
       to: data.to,
       subject: `Erinnerung: Saldenbestätigung zum ${data.balanceDate} noch ausstehend`,
@@ -91,7 +107,7 @@ export async function sendReminderEmail(data: ConfirmationEmailData): Promise<vo
 
   const transporter = createTransporter();
   await transporter.sendMail({
-    from: `"${data.kanzleiName}" <${process.env.BREVO_LOGIN}>`,
+    from: fromAddress(data.kanzleiName),
     to: data.to,
     subject: `Erinnerung: Saldenbestätigung zum ${data.balanceDate} noch ausstehend`,
     html: `

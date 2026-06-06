@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { getAuthUser, unauthorized } from '@/lib/require-auth';
+import {
+  visibleCampaignWhere,
+  visibleEngagementWhere,
+  visibleMandantWhere,
+  visiblePbcWorkspaceWhere,
+} from '@/lib/mandant-access';
 
 export async function GET() {
   try {
     const user = await getAuthUser();
     if (!user) return unauthorized();
-    if (!isWpUser(user)) return forbidden();
-
     const [
       mandantenCount,
       engagementStats,
@@ -17,30 +21,34 @@ export async function GET() {
       recentEngagements,
       campaignKpis,
     ] = await Promise.all([
-      prisma.mandant.count(),
+      prisma.mandant.count({ where: visibleMandantWhere(user) }),
 
       prisma.engagement.groupBy({
         by: ['status'],
+        where: visibleEngagementWhere(user),
         _count: { id: true },
       }),
 
       prisma.confirmationCampaign.groupBy({
         by: ['status'],
+        where: visibleCampaignWhere(user),
         _count: { id: true },
       }),
 
       prisma.confirmationRequest.groupBy({
         by: ['status'],
+        where: { campaign: visibleCampaignWhere(user) },
         _count: { id: true },
       }),
 
       prisma.pbcRequestItem.groupBy({
         by: ['status'],
+        where: { list: { workspace: visiblePbcWorkspaceWhere(user) } },
         _count: { id: true },
       }),
 
       prisma.engagement.findMany({
-        where: { status: 'ACTIVE' },
+        where: { status: 'ACTIVE', ...visibleEngagementWhere(user) },
         take: 10,
         orderBy: { createdAt: 'desc' },
         include: {
@@ -50,7 +58,7 @@ export async function GET() {
       }),
 
       prisma.confirmationCampaign.findMany({
-        where: { status: { in: ['ACTIVE', 'COMPLETED'] } },
+        where: { status: { in: ['ACTIVE', 'COMPLETED'] }, ...visibleCampaignWhere(user) },
         take: 10,
         orderBy: { createdAt: 'desc' },
         include: {

@@ -5,9 +5,57 @@ export async function canAccessWorkspace(
   isWp: boolean,
   workspaceId: string
 ): Promise<boolean> {
-  if (isWp) return true;
-  const member = await prisma.pbcMember.findFirst({ where: { workspaceId, userId } });
-  return member !== null;
+  const workspace = await prisma.pbcWorkspace.findUnique({
+    where: { id: workspaceId },
+    select: {
+      engagement: {
+        select: {
+          mandantId: true,
+          mandant: {
+            select: {
+              teamLinks: {
+                where: { team: { members: { some: { userId } } } },
+                select: { id: true },
+                take: 1,
+              },
+              userLinks: {
+                where: { userId },
+                select: { userId: true },
+                take: 1,
+              },
+              users: {
+                where: { id: userId },
+                select: { id: true },
+                take: 1,
+              },
+            },
+          },
+        },
+      },
+      members: {
+        where: { userId },
+        select: { userId: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (!workspace) return false;
+
+  if (isWp) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (dbUser?.role === 'WP_ADMIN') return true;
+    return workspace.engagement.mandant.teamLinks.length > 0;
+  }
+
+  return (
+    workspace.members.length > 0 ||
+    workspace.engagement.mandant.userLinks.length > 0 ||
+    workspace.engagement.mandant.users.length > 0
+  );
 }
 
 export async function getListWorkspaceId(listId: string): Promise<string | null> {

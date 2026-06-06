@@ -10,11 +10,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const { id } = await params;
     const body = await req.json();
-    const { role, status, teamIds, mandantIds } = body as {
+    const { role, status, teamIds, mandantIds, mandanten } = body as {
       role?: string;
       status?: string;
       teamIds?: string[];
       mandantIds?: string[];
+      mandanten?: Array<{ mandantId: string; role: 'MANDANT_ADMIN' | 'MANDANT_USER' }>;
     };
 
     const existing = await prisma.user.findUnique({
@@ -30,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       role: existing.role,
       status: existing.status,
       teamIds: existing.teams.map((t) => t.teamId),
-      mandantIds: existing.mandanten.map((m) => m.mandantId),
+      mandanten: existing.mandanten.map((m) => ({ mandantId: m.mandantId, role: m.role })),
     };
 
     await prisma.$transaction(async (tx) => {
@@ -52,11 +53,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         }
       }
 
-      if (mandantIds !== undefined) {
+      if (mandanten !== undefined || mandantIds !== undefined) {
+        const nextMandanten = mandanten ?? mandantIds?.map((mandantId) => ({
+          mandantId,
+          role: (role === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER') as 'MANDANT_ADMIN' | 'MANDANT_USER',
+        })) ?? [];
+
         await tx.userMandant.deleteMany({ where: { userId: id } });
-        if (mandantIds.length > 0) {
+        if (nextMandanten.length > 0) {
           await tx.userMandant.createMany({
-            data: mandantIds.map((mandantId) => ({ mandantId, userId: id })),
+            data: nextMandanten.map((link) => ({
+              mandantId: link.mandantId,
+              userId: id,
+              role: link.role === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER',
+            })),
             skipDuplicates: true,
           });
         }
@@ -70,7 +80,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       entityType: 'User',
       entityId: id,
       prevState,
-      details: { role, status, teamIds, mandantIds },
+      details: { role, status, teamIds, mandantIds, mandanten },
     });
 
     return NextResponse.json({ message: 'Benutzer aktualisiert' });

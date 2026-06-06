@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { visibleMandantWhere } from '@/lib/mandant-access';
 
 export async function GET() {
   try {
     const user = await getAuthUser();
     if (!user) return unauthorized();
 
-    if (!isWpUser(user)) {
-      return NextResponse.json([]);
-    }
-
     const mandanten = await prisma.mandant.findMany({
+      where: visibleMandantWhere(user),
       include: {
         _count: {
-          select: { engagements: true, users: true },
+          select: { engagements: true, userLinks: true },
         },
       },
       orderBy: { createdAt: 'desc' },

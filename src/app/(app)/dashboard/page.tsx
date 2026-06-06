@@ -12,8 +12,14 @@ import {
   FolderOpen,
   BarChart3,
 } from 'lucide-react';
+import {
+  visibleCampaignWhere,
+  visibleEngagementWhere,
+  visibleMandantWhere,
+  visiblePbcWorkspaceWhere,
+} from '@/lib/mandant-access';
 
-async function getDashboardData() {
+async function getDashboardData(user: { id: string; role?: string }) {
   try {
     const [
       mandantenCount,
@@ -23,16 +29,28 @@ async function getDashboardData() {
       recentEngagements,
       campaignKpisRaw,
     ] = await Promise.all([
-      prisma.mandant.count(),
+      prisma.mandant.count({ where: visibleMandantWhere(user) }),
 
-      prisma.engagement.groupBy({ by: ['status'], _count: { id: true } }),
+      prisma.engagement.groupBy({
+        by: ['status'],
+        where: visibleEngagementWhere(user),
+        _count: { id: true },
+      }),
 
-      prisma.confirmationRequest.groupBy({ by: ['status'], _count: { id: true } }),
+      prisma.confirmationRequest.groupBy({
+        by: ['status'],
+        where: { campaign: visibleCampaignWhere(user) },
+        _count: { id: true },
+      }),
 
-      prisma.pbcRequestItem.groupBy({ by: ['status'], _count: { id: true } }),
+      prisma.pbcRequestItem.groupBy({
+        by: ['status'],
+        where: { list: { workspace: visiblePbcWorkspaceWhere(user) } },
+        _count: { id: true },
+      }),
 
       prisma.engagement.findMany({
-        where: { status: 'ACTIVE' },
+        where: { status: 'ACTIVE', ...visibleEngagementWhere(user) },
         take: 8,
         orderBy: { createdAt: 'desc' },
         include: {
@@ -42,7 +60,7 @@ async function getDashboardData() {
       }),
 
       prisma.confirmationCampaign.findMany({
-        where: { status: { in: ['ACTIVE', 'COMPLETED'] } },
+        where: { status: { in: ['ACTIVE', 'COMPLETED'] }, ...visibleCampaignWhere(user) },
         take: 8,
         orderBy: { createdAt: 'desc' },
         include: {
@@ -140,9 +158,10 @@ function StatCard({ title, value, description, icon: Icon, iconClass, iconBgClas
 
 export default async function DashboardPage() {
   const session = await auth();
-  const data = await getDashboardData();
+  const sessionUser = session?.user as { id?: string; role?: string; name?: string } | undefined;
+  const data = await getDashboardData({ id: sessionUser?.id ?? '', role: sessionUser?.role });
 
-  const userName = (session?.user as { name?: string })?.name || 'Benutzer';
+  const userName = sessionUser?.name || 'Benutzer';
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend';

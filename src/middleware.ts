@@ -19,6 +19,11 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // Allow public mandant invitation flow
+  if (pathname.startsWith('/invite/') || pathname.startsWith('/api/invites/')) {
+    return NextResponse.next();
+  }
+
   // Allow login page
   if (pathname === '/login') {
     // Already logged in → redirect to dashboard

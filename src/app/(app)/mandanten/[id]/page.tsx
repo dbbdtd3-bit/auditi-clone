@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
+import { auth } from '@/lib/auth';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Building2, Briefcase, MapPin, Hash, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { EditMandantDialog } from '@/components/mandanten/edit-mandant-dialog';
+import { MandantAccessPanels } from '@/components/mandanten/mandant-access-panels';
+import { canManageMandantUsers, canViewMandant } from '@/lib/mandant-permissions';
 
 interface MandantAddress {
   street?: string;
@@ -35,7 +38,14 @@ async function getMandant(id: string) {
           include: { mandant: true },
           orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         },
-        users: true,
+        userLinks: {
+          include: { user: { select: { id: true, name: true, email: true, status: true } } },
+          orderBy: { user: { name: 'asc' } },
+        },
+        teamLinks: {
+          include: { team: { select: { id: true, name: true } } },
+          orderBy: { team: { name: 'asc' } },
+        },
       },
     });
   } catch {
@@ -49,11 +59,22 @@ export default async function MandantDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const session = await auth();
+  const sessionUser = session?.user as { id?: string; role?: string } | undefined;
+  if (!sessionUser?.id) notFound();
+  if (!await canViewMandant({ id: sessionUser.id, role: sessionUser.role }, id)) notFound();
+
   const mandant = await getMandant(id);
 
   if (!mandant) notFound();
 
   const address = mandant.address as MandantAddress | null;
+  const isWp = sessionUser.role === 'WP_ADMIN' || sessionUser.role === 'WP_TEAM';
+  const isAdmin = sessionUser.role === 'WP_ADMIN';
+  const canManageUsers = await canManageMandantUsers({ id: sessionUser.id, role: sessionUser.role }, id);
+  const teams = isAdmin
+    ? await prisma.team.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } })
+    : [];
 
   return (
     <div>
@@ -66,15 +87,17 @@ export default async function MandantDetailPage({
             <p className="text-[13px] text-dataly-muted mt-0.5">{mandant.legalName}</p>
           )}
         </div>
-        <EditMandantDialog
-          mandant={{
-            id: mandant.id,
-            name: mandant.name,
-            legalName: mandant.legalName,
-            taxId: mandant.taxId,
-            address: address,
-          }}
-        />
+        {isWp && (
+          <EditMandantDialog
+            mandant={{
+              id: mandant.id,
+              name: mandant.name,
+              legalName: mandant.legalName,
+              taxId: mandant.taxId,
+              address: address,
+            }}
+          />
+        )}
       </div>
 
       <div className="p-6 space-y-6">
@@ -112,13 +135,25 @@ export default async function MandantDetailPage({
                     {mandant.engagements.length} {mandant.engagements.length === 1 ? 'Engagement' : 'Engagements'}
                   </Badge>
                   <Badge variant="outline">
-                    {mandant.users.length} {mandant.users.length === 1 ? 'Nutzer' : 'Nutzer'}
+                    {mandant.userLinks.length} {mandant.userLinks.length === 1 ? 'Nutzer' : 'Nutzer'}
                   </Badge>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        <MandantAccessPanels
+          mandantId={mandant.id}
+          members={mandant.userLinks.map((link) => ({
+            role: link.role,
+            user: link.user,
+          }))}
+          selectedTeamIds={mandant.teamLinks.map((link) => link.team.id)}
+          teams={teams}
+          canManageTeams={isAdmin}
+          canManageUsers={canManageUsers}
+        />
 
         {/* Engagements */}
         <div>

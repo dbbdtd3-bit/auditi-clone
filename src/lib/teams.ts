@@ -11,6 +11,11 @@ export async function getUserTeams(userId: string) {
           user: { select: { id: true, name: true, email: true, role: true } },
         },
       },
+      mandanten: {
+        include: {
+          mandant: { select: { id: true, name: true, legalName: true } },
+        },
+      },
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -24,8 +29,12 @@ export async function getAllTeams() {
           user: { select: { id: true, name: true, email: true, role: true } },
         },
       },
+      mandanten: {
+        include: {
+          mandant: { select: { id: true, name: true, legalName: true } },
+        },
+      },
     },
     orderBy: { createdAt: 'asc' },
   });
 }
-

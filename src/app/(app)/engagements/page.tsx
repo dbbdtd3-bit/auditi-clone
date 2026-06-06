@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Briefcase, Building2, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { CreateEngagementDialog } from '@/components/engagements/create-engagement-dialog';
+import { visibleEngagementWhere } from '@/lib/mandant-access';
 
 const engagementTypeLabel: Record<string, string> = {
   JAHRESABSCHLUSS: 'Jahresabschluss',
@@ -20,9 +21,10 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   ARCHIVED: { label: 'Archiviert', variant: 'outline' },
 };
 
-async function getEngagements() {
+async function getEngagements(user: { id: string; role?: string }) {
   try {
     return await prisma.engagement.findMany({
+      where: visibleEngagementWhere(user),
       include: {
         mandant: true,
         _count: {
@@ -40,10 +42,11 @@ const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
 
 export default async function EngagementsPage() {
   const session = await auth();
-  const role = (session?.user as { role?: string })?.role ?? '';
+  const sessionUser = session?.user as { id?: string; role?: string } | undefined;
+  const role = sessionUser?.role ?? '';
   if (!WP_ROLES.includes(role)) redirect('/dashboard');
 
-  const engagements = await getEngagements();
+  const engagements = await getEngagements({ id: sessionUser?.id ?? '', role });
 
   const active = engagements.filter((e) => e.status === 'ACTIVE');
   const others = engagements.filter((e) => e.status !== 'ACTIVE');

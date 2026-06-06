@@ -122,3 +122,150 @@ export async function sendReminderEmail(data: ConfirmationEmailData): Promise<vo
     `,
   });
 }
+
+interface SimpleMailData {
+  to: string;
+  subject: string;
+  title: string;
+  intro: string;
+  buttonLabel?: string;
+  buttonUrl?: string;
+  details?: Array<{ label: string; value: string }>;
+}
+
+function buildSimpleHtml(data: SimpleMailData): string {
+  const detailRows = data.details?.map((detail, index) => `
+    <tr style="background: ${index % 2 === 0 ? '#f8fafc' : '#ffffff'};">
+      <td style="padding: 10px 12px; border: 1px solid #d9e2ec; font-weight: 600; width: 36%;">${detail.label}</td>
+      <td style="padding: 10px 12px; border: 1px solid #d9e2ec;">${detail.value}</td>
+    </tr>
+  `).join('') ?? '';
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; color: #102033;">
+      <div style="background: #0b2d5c; padding: 22px 30px; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">Dataly</h1>
+        <p style="color: #d9e2ec; margin: 4px 0 0; font-size: 13px;">Pruefungsplattform</p>
+      </div>
+      <div style="background: #ffffff; padding: 30px; border: 1px solid #d9e2ec; border-top: none; border-radius: 0 0 8px 8px;">
+        <h2 style="margin-top: 0; color: #0b2d5c;">${data.title}</h2>
+        <p style="font-size: 14px; line-height: 22px;">${data.intro}</p>
+        ${detailRows ? `<table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">${detailRows}</table>` : ''}
+        ${data.buttonUrl && data.buttonLabel ? `
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${data.buttonUrl}" style="display: inline-block; padding: 13px 28px; background: #1e63e9; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600;">
+              ${data.buttonLabel}
+            </a>
+          </div>
+        ` : ''}
+        <p style="color: #53657a; font-size: 12px; border-top: 1px solid #d9e2ec; padding-top: 16px;">
+          Diese Nachricht wurde automatisch durch Dataly versendet.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+async function sendSimpleMail(data: SimpleMailData): Promise<void> {
+  if (!isEmailConfigured()) {
+    console.log('[email] BREVO nicht konfiguriert - E-Mail-Versand uebersprungen', {
+      to: data.to,
+      subject: data.subject,
+    });
+    return;
+  }
+
+  const transporter = createTransporter();
+  await transporter.sendMail({
+    from: fromAddress('Dataly'),
+    to: data.to,
+    subject: data.subject,
+    html: buildSimpleHtml(data),
+  });
+}
+
+export async function sendMandantInviteEmail(data: {
+  to: string;
+  name: string;
+  mandantName: string;
+  inviteUrl: string;
+  expiresAt: string;
+}): Promise<void> {
+  await sendSimpleMail({
+    to: data.to,
+    subject: `Einladung zu Dataly - ${data.mandantName}`,
+    title: 'Einladung zu Dataly',
+    intro: `Hallo ${data.name}, Sie wurden zum Mandantenbereich ${data.mandantName} eingeladen. Bitte legen Sie Ihr Passwort ueber den folgenden Link fest.`,
+    buttonLabel: 'Einladung annehmen',
+    buttonUrl: data.inviteUrl,
+    details: [
+      { label: 'Mandant', value: data.mandantName },
+      { label: 'Gueltig bis', value: data.expiresAt },
+    ],
+  });
+}
+
+export async function sendPbcUploadDigestEmail(data: {
+  to: string;
+  listTitle: string;
+  mandantName: string;
+  uploadCount: number;
+  fileNames: string[];
+  listUrl: string;
+}): Promise<void> {
+  await sendSimpleMail({
+    to: data.to,
+    subject: `Neue Uploads in Dataly - ${data.listTitle}`,
+    title: 'Neue Dokumente hochgeladen',
+    intro: `Im Dokumentenaustausch fuer ${data.mandantName} wurden neue Dateien hochgeladen.`,
+    buttonLabel: 'Anforderungsliste oeffnen',
+    buttonUrl: data.listUrl,
+    details: [
+      { label: 'Anforderungsliste', value: data.listTitle },
+      { label: 'Dateien', value: String(data.uploadCount) },
+      { label: 'Auszug', value: data.fileNames.slice(0, 8).join(', ') || 'Keine Dateinamen verfuegbar' },
+    ],
+  });
+}
+
+export async function sendPbcMandantRequestEmail(data: {
+  to: string;
+  listTitle: string;
+  mandantName: string;
+  listUrl: string;
+}): Promise<void> {
+  await sendSimpleMail({
+    to: data.to,
+    subject: `Bitte pruefen: ${data.listTitle}`,
+    title: 'Anforderungsliste pruefen',
+    intro: `Die Kanzlei bittet Sie, die Anforderungsliste fuer ${data.mandantName} zu pruefen.`,
+    buttonLabel: 'Anforderungsliste oeffnen',
+    buttonUrl: data.listUrl,
+    details: [
+      { label: 'Mandant', value: data.mandantName },
+      { label: 'Anforderungsliste', value: data.listTitle },
+    ],
+  });
+}
+
+export async function sendSbaResponseNotificationEmail(data: {
+  to: string;
+  campaignTitle: string;
+  partnerName: string;
+  mandantName: string;
+  campaignUrl: string;
+}): Promise<void> {
+  await sendSimpleMail({
+    to: data.to,
+    subject: `SBA-Rueckmeldung eingegangen - ${data.campaignTitle}`,
+    title: 'Rueckmeldung eingegangen',
+    intro: 'Zu einer Saldenbestaetigungs-Kampagne ist eine neue Rueckmeldung eingegangen.',
+    buttonLabel: 'Kampagne oeffnen',
+    buttonUrl: data.campaignUrl,
+    details: [
+      { label: 'Mandant', value: data.mandantName },
+      { label: 'Kampagne', value: data.campaignTitle },
+      { label: 'Partner', value: data.partnerName },
+    ],
+  });
+}

@@ -7,15 +7,17 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { CreateMandantDialog } from '@/components/mandanten/create-mandant-dialog';
+import { visibleMandantWhere } from '@/lib/mandant-access';
 
 const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
 
-async function getMandanten() {
+async function getMandanten(user: { id: string; role?: string }) {
   try {
     return await prisma.mandant.findMany({
+      where: visibleMandantWhere(user),
       include: {
         _count: {
-          select: { engagements: true, users: true },
+          select: { engagements: true, userLinks: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -27,10 +29,11 @@ async function getMandanten() {
 
 export default async function MandantenPage() {
   const session = await auth();
-  const role = (session?.user as { role?: string })?.role ?? '';
+  const sessionUser = session?.user as { id?: string; role?: string } | undefined;
+  const role = sessionUser?.role ?? '';
   if (!WP_ROLES.includes(role)) redirect('/dashboard');
 
-  const mandanten = await getMandanten();
+  const mandanten = await getMandanten({ id: sessionUser?.id ?? '', role });
 
   return (
     <div>
@@ -107,7 +110,7 @@ export default async function MandantenPage() {
                           {m._count.engagements} {m._count.engagements === 1 ? 'Engagement' : 'Engagements'}
                         </Badge>
                         <Badge variant="outline">
-                          {m._count.users} {m._count.users === 1 ? 'Nutzer' : 'Nutzer'}
+                          {m._count.userLinks} {m._count.userLinks === 1 ? 'Nutzer' : 'Nutzer'}
                         </Badge>
                       </div>
                     </CardContent>

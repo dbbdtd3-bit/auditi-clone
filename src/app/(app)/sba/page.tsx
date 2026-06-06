@@ -3,12 +3,14 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { SbaCampaignsOverview } from '@/components/sba/campaigns-overview';
+import { visibleCampaignWhere } from '@/lib/mandant-access';
 
 const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
 
-async function getCampaigns() {
+async function getCampaigns(user: { id: string; role?: string }) {
   try {
     return await prisma.confirmationCampaign.findMany({
+      where: visibleCampaignWhere(user),
       include: {
         engagement: { include: { mandant: true } },
         requests: { select: { status: true } },
@@ -22,10 +24,11 @@ async function getCampaigns() {
 
 export default async function SbaPage() {
   const session = await auth();
-  const role = (session?.user as { role?: string })?.role ?? '';
+  const sessionUser = session?.user as { id?: string; role?: string } | undefined;
+  const role = sessionUser?.role ?? '';
   if (!WP_ROLES.includes(role)) redirect('/dashboard');
 
-  const campaigns = await getCampaigns();
+  const campaigns = await getCampaigns({ id: sessionUser?.id ?? '', role });
   const campaignItems = campaigns.map((campaign) => ({
     id: campaign.id,
     title: campaign.title,

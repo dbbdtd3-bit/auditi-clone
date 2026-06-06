@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,10 @@ type Team = {
   description: string | null;
   accentColor: string;
   members: Member[];
+  mandanten: { mandant: { id: string; name: string; legalName: string | null } }[];
 };
+
+type MandantOption = { id: string; name: string; legalName?: string | null };
 
 interface Props {
   teams: Team[];
@@ -40,9 +43,40 @@ const ROLE_LABEL: Record<string, string> = {
 export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
   const [selectedId, setSelectedId] = useState<string>(teams[0]?.id ?? '');
   const [newTeamOpen, setNewTeamOpen] = useState(false);
+  const [allMandanten, setAllMandanten] = useState<MandantOption[]>([]);
+  const [savingMandantId, setSavingMandantId] = useState<string | null>(null);
   const router = useRouter();
 
   const selected = teams.find((t) => t.id === selectedId);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch('/api/mandanten')
+      .then((res) => res.json())
+      .then((data) => setAllMandanten(Array.isArray(data) ? data : []))
+      .catch(() => setAllMandanten([]));
+  }, [isAdmin]);
+
+  async function toggleMandant(mandantId: string, checked: boolean) {
+    if (!selected) return;
+    setSavingMandantId(mandantId);
+
+    const currentTeamIds = teams
+      .filter((team) => team.mandanten.some((link) => link.mandant.id === mandantId))
+      .map((team) => team.id);
+    const nextTeamIds = checked
+      ? Array.from(new Set([...currentTeamIds, selected.id]))
+      : currentTeamIds.filter((teamId) => teamId !== selected.id);
+
+    await fetch(`/api/mandanten/${mandantId}/teams`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamIds: nextTeamIds }),
+    });
+
+    setSavingMandantId(null);
+    router.refresh();
+  }
 
   if (teams.length === 0) {
     return (
@@ -145,6 +179,59 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
                   <p className="text-sm text-dataly-muted px-1">Keine Mitglieder.</p>
                 )}
               </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-xs font-semibold uppercase tracking-wider text-dataly-muted mb-3">
+                Mandanten ({selected.mandanten.length})
+              </p>
+              {isAdmin ? (
+                <div className="grid gap-2">
+                  {allMandanten.map((mandant) => {
+                    const checked = selected.mandanten.some((link) => link.mandant.id === mandant.id);
+                    return (
+                      <label
+                        key={mandant.id}
+                        className="flex items-center justify-between rounded-lg border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5 text-sm"
+                      >
+                        <span>
+                          <span className="block font-medium text-dataly-ink">{mandant.name}</span>
+                          {mandant.legalName && mandant.legalName !== mandant.name && (
+                            <span className="block text-xs text-dataly-muted">{mandant.legalName}</span>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-dataly-blue"
+                          checked={checked}
+                          disabled={savingMandantId === mandant.id}
+                          onChange={(event) => toggleMandant(mandant.id, event.target.checked)}
+                        />
+                      </label>
+                    );
+                  })}
+                  {allMandanten.length === 0 && (
+                    <p className="text-sm text-dataly-muted px-1">Keine Mandanten vorhanden.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selected.mandanten.map((link) => (
+                    <div
+                      key={link.mandant.id}
+                      className="rounded-lg border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5"
+                    >
+                      <p className="text-sm font-medium text-dataly-ink">{link.mandant.name}</p>
+                      {link.mandant.legalName && (
+                        <p className="text-xs text-dataly-slate">{link.mandant.legalName}</p>
+                      )}
+                    </div>
+                  ))}
+                  {selected.mandanten.length === 0 && (
+                    <p className="text-sm text-dataly-muted px-1">Keine Mandanten zugeordnet.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Admin: Delete Team */}

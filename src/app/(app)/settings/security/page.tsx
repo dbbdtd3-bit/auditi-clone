@@ -14,7 +14,7 @@ type User = {
   status: string;
   kind: 'WP' | 'CLIENT';
   teams: { team: { id: string; name: string } }[];
-  mandanten: { mandant: { id: string; name: string } }[];
+  mandanten: { role: 'MANDANT_ADMIN' | 'MANDANT_USER'; mandant: { id: string; name: string } }[];
   createdAt: string;
 };
 

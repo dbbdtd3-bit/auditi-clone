@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { EngagementType } from '@prisma/client';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { visibleEngagementWhere, visibleMandantWhere } from '@/lib/mandant-access';
 
 const VALID_TYPES = ['JAHRESABSCHLUSS', 'SONDERPRUEFUNG', 'DUE_DILIGENCE'];
 
@@ -12,6 +13,7 @@ export async function GET() {
     if (!isWpUser(user)) return forbidden();
 
     const engagements = await prisma.engagement.findMany({
+      where: visibleEngagementWhere(user),
       include: { mandant: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -44,6 +46,12 @@ export async function POST(req: NextRequest) {
     if (!VALID_TYPES.includes(type)) {
       return NextResponse.json({ error: 'Ungültiger Auftragstyp' }, { status: 400 });
     }
+
+    const allowedMandant = await prisma.mandant.findFirst({
+      where: { id: mandantId, ...visibleMandantWhere(user) },
+      select: { id: true },
+    });
+    if (!allowedMandant) return forbidden();
 
     const engagement = await prisma.$transaction(async (tx) => {
       const eng = await tx.engagement.create({

@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
+import { auth } from '@/lib/auth';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { ListPageClient } from '@/components/pbc/list-page-client';
+import { canAccessWorkspace } from '@/lib/pbc-access';
 
 async function getList(listId: string, workspaceId: string) {
   try {
@@ -32,6 +34,12 @@ export default async function ListPage({
   params: Promise<{ workspaceId: string; listId: string }>;
 }) {
   const { workspaceId, listId } = await params;
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  if (!user?.id) notFound();
+  const isWp = user.role === 'WP_ADMIN' || user.role === 'WP_TEAM';
+  if (!await canAccessWorkspace(user.id, isWp, workspaceId)) notFound();
+
   const list = await getList(listId, workspaceId);
   if (!list) notFound();
 
@@ -82,6 +90,9 @@ export default async function ListPage({
             createdAt: a.createdAt,
             itemId: a.itemId,
           }))}
+          currentUserId={user.id}
+          currentUserRole={user.role ?? ''}
+          createdById={list.createdById}
         />
       </div>
     </div>

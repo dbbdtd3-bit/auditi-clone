@@ -8,24 +8,29 @@ datasource db {
 }
 
 model User {
-  id           String            @id @default(cuid())
-  email        String            @unique
-  name         String
-  role         Role              @default(WP_TEAM)
-  status       UserStatus        @default(ACTIVE)
-  kind         UserKind          @default(WP)
-  passwordHash String?
-  createdAt    DateTime          @default(now())
-  mandant      Mandant?          @relation(fields: [mandantId], references: [id])
-  mandantId    String?
-  pbcMembers   PbcMember[]
-  teams        TeamMember[]
-  mandanten    UserMandant[]
-  threads      AssistantThread[]
+  id                             String                                      @id @default(cuid())
+  email                          String                                      @unique
+  name                           String
+  role                           Role                                        @default(WP_TEAM)
+  status                         UserStatus                                  @default(ACTIVE)
+  kind                           UserKind                                    @default(WP)
+  passwordHash                   String?
+  createdAt                      DateTime                                    @default(now())
+  mandant                        Mandant?                                    @relation(fields: [mandantId], references: [id])
+  mandantId                      String?
+  pbcMembers                     PbcMember[]
+  teams                          TeamMember[]
+  mandanten                      UserMandant[]
+  mandantInvitesCreated          MandantInvite[]                             @relation("MandantInviteCreatedBy")
+  pbcRequestListsCreated         PbcRequestList[]                            @relation("PbcListCreatedBy")
+  pbcListNotificationRecipients  PbcListNotificationRecipient[]
+  confirmationCampaignsCreated   ConfirmationCampaign[]                      @relation("CampaignCreatedBy")
+  campaignNotificationRecipients ConfirmationCampaignNotificationRecipient[]
+  threads                        AssistantThread[]
 }
 
 model Mandant {
-  id          String        @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
   legalName   String?
   taxId       String?
@@ -33,17 +38,20 @@ model Mandant {
   logoUrl     String?
   users       User[]
   userLinks   UserMandant[]
+  teamLinks   TeamMandant[]
+  invites     MandantInvite[]
   engagements Engagement[]
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime        @default(now())
 }
 
 model Team {
-  id          String       @id @default(cuid())
+  id          String        @id @default(cuid())
   name        String
   description String?
-  accentColor TeamColor    @default(BLUE)
+  accentColor TeamColor     @default(BLUE)
   members     TeamMember[]
-  createdAt   DateTime     @default(now())
+  mandanten   TeamMandant[]
+  createdAt   DateTime      @default(now())
 }
 
 model TeamMember {
@@ -57,13 +65,45 @@ model TeamMember {
   @@index([userId])
 }
 
+model TeamMandant {
+  id        String  @id @default(cuid())
+  teamId    String
+  mandantId String
+  team      Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  mandant   Mandant @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, mandantId])
+  @@index([mandantId])
+}
+
 model UserMandant {
   userId    String
   mandantId String
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mandant   Mandant @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+  role      MandantMemberRole @default(MANDANT_USER)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mandant   Mandant           @relation(fields: [mandantId], references: [id], onDelete: Cascade)
 
   @@id([userId, mandantId])
+  @@index([mandantId, role])
+}
+
+model MandantInvite {
+  id          String              @id @default(cuid())
+  mandantId   String
+  createdById String?
+  name        String
+  email       String
+  role        MandantMemberRole   @default(MANDANT_USER)
+  tokenHash   String              @unique
+  status      MandantInviteStatus @default(PENDING)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime            @default(now())
+  mandant     Mandant             @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+  createdBy   User?               @relation("MandantInviteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([mandantId])
+  @@index([email])
 }
 
 model AuditLog {
@@ -108,27 +148,42 @@ model AssistantMessage {
 }
 
 model Engagement {
-  id           String               @id @default(cuid())
-  mandant      Mandant              @relation(fields: [mandantId], references: [id])
+  id           String                 @id @default(cuid())
+  mandant      Mandant                @relation(fields: [mandantId], references: [id])
   mandantId    String
   title        String
   fiscalYear   Int
   type         EngagementType
-  status       EngagementStatus     @default(ACTIVE)
+  status       EngagementStatus       @default(ACTIVE)
   campaigns    ConfirmationCampaign[]
   pbcWorkspace PbcWorkspace?
-  createdAt    DateTime             @default(now())
+  createdAt    DateTime               @default(now())
 }
 
 model ConfirmationCampaign {
-  id           String                @id @default(cuid())
-  engagement   Engagement            @relation(fields: [engagementId], references: [id])
-  engagementId String
-  title        String
-  balanceDate  DateTime
-  status       CampaignStatus        @default(DRAFT)
-  requests     ConfirmationRequest[]
-  createdAt    DateTime              @default(now())
+  id                     String                                      @id @default(cuid())
+  engagement             Engagement                                  @relation(fields: [engagementId], references: [id])
+  engagementId           String
+  createdBy              User?                                       @relation("CampaignCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById            String?
+  title                  String
+  balanceDate            DateTime
+  status                 CampaignStatus                              @default(DRAFT)
+  requests               ConfirmationRequest[]
+  notificationRecipients ConfirmationCampaignNotificationRecipient[]
+  createdAt              DateTime                                    @default(now())
+}
+
+model ConfirmationCampaignNotificationRecipient {
+  id         String               @id @default(cuid())
+  campaignId String
+  userId     String
+  campaign   ConfirmationCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime             @default(now())
+
+  @@unique([campaignId, userId])
+  @@index([userId])
 }
 
 model ConfirmationRequest {
@@ -210,35 +265,54 @@ model PbcMember {
 }
 
 model PbcRequestList {
-  id           String           @id @default(cuid())
-  workspace    PbcWorkspace     @relation(fields: [workspaceId], references: [id])
-  workspaceId  String
-  title        String
-  description  String?
-  fromTemplate String?
-  sortOrder    Int              @default(0)
-  items        PbcRequestItem[]
-  comments     PbcListComment[]
-  activities   PbcActivity[]
-  createdAt    DateTime         @default(now())
+  id                         String                         @id @default(cuid())
+  workspace                  PbcWorkspace                   @relation(fields: [workspaceId], references: [id])
+  workspaceId                String
+  createdBy                  User?                          @relation("PbcListCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById                String?
+  title                      String
+  description                String?
+  fromTemplate               String?
+  sortOrder                  Int                            @default(0)
+  uploadDigestStartedAt      DateTime?
+  uploadDigestLastActivityAt DateTime?
+  items                      PbcRequestItem[]
+  comments                   PbcListComment[]
+  activities                 PbcActivity[]
+  notificationRecipients     PbcListNotificationRecipient[]
+  createdAt                  DateTime                       @default(now())
 
   @@index([workspaceId, sortOrder])
+  @@index([createdById])
+}
+
+model PbcListNotificationRecipient {
+  id        String                  @id @default(cuid())
+  listId    String
+  userId    String
+  audience  PbcNotificationAudience
+  list      PbcRequestList          @relation(fields: [listId], references: [id], onDelete: Cascade)
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime                @default(now())
+
+  @@unique([listId, userId, audience])
+  @@index([userId])
 }
 
 model PbcRequestItem {
-  id          String          @id @default(cuid())
-  list        PbcRequestList  @relation(fields: [listId], references: [id], onDelete: Cascade)
+  id          String         @id @default(cuid())
+  list        PbcRequestList @relation(fields: [listId], references: [id], onDelete: Cascade)
   listId      String
   title       String
   description String?
   assignedTo  String?
   dueDate     DateTime?
-  status      PbcItemStatus   @default(OPEN)
+  status      PbcItemStatus  @default(OPEN)
   files       PbcFile[]
   comments    PbcComment[]
-  sortOrder   Int             @default(0)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @default(now()) @updatedAt
 
   @@index([listId, sortOrder])
   @@index([listId, status])
@@ -339,6 +413,18 @@ enum UserKind {
   CLIENT
 }
 
+enum MandantMemberRole {
+  MANDANT_ADMIN
+  MANDANT_USER
+}
+
+enum MandantInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
 enum TeamColor {
   BLUE
   RED
@@ -353,6 +439,11 @@ enum PbcRole {
   WP_TEAM
   MANDANT_ADMIN
   MANDANT_UPLOADER
+}
+
+enum PbcNotificationAudience {
+  KANZLEI_UPLOADS
+  MANDANT_REQUESTS
 }
 
 enum EngagementType {

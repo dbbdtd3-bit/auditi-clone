@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { NativeSelect, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Pencil, Check, X } from 'lucide-react';
 
 type User = {
@@ -16,9 +17,13 @@ type User = {
   status: string;
   kind: 'WP' | 'CLIENT';
   teams: { team: { id: string; name: string } }[];
-  mandanten: { mandant: { id: string; name: string } }[];
+  mandanten: { role: 'MANDANT_ADMIN' | 'MANDANT_USER'; mandant: { id: string; name: string } }[];
   createdAt: string;
 };
+
+type TeamOption = { id: string; name: string };
+type MandantOption = { id: string; name: string };
+type MandantSelection = { mandantId: string; role: 'MANDANT_ADMIN' | 'MANDANT_USER' };
 
 const ROLE_LABELS: Record<string, string> = {
   WP_ADMIN: 'WP Admin',
@@ -39,27 +44,70 @@ interface ActiveUsersTableProps {
 export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTableProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editRole, setEditRole] = useState('');
+  const [editTeamIds, setEditTeamIds] = useState<string[]>([]);
+  const [editMandanten, setEditMandanten] = useState<MandantSelection[]>([]);
+  const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [mandanten, setMandanten] = useState<MandantOption[]>([]);
   const [saving, setSaving] = useState(false);
+
+  async function loadOptions() {
+    if (teams.length > 0 && mandanten.length > 0) return;
+    const [teamData, mandantData] = await Promise.all([
+      fetch('/api/teams').then((r) => r.json()).catch(() => ({ teams: [] })),
+      fetch('/api/mandanten').then((r) => r.json()).catch(() => []),
+    ]);
+    setTeams(Array.isArray(teamData?.teams) ? teamData.teams : []);
+    setMandanten(Array.isArray(mandantData) ? mandantData : []);
+  }
 
   function startEdit(user: User) {
     setEditingId(user.id);
     setEditRole(user.role);
+    setEditTeamIds(user.teams.map((t) => t.team.id));
+    setEditMandanten(user.mandanten.map((m) => ({ mandantId: m.mandant.id, role: m.role })));
+    void loadOptions();
   }
 
   function cancelEdit() {
     setEditingId(null);
     setEditRole('');
+    setEditTeamIds([]);
+    setEditMandanten([]);
+  }
+
+  function toggleTeam(teamId: string) {
+    setEditTeamIds((prev) =>
+      prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]
+    );
+  }
+
+  function toggleMandant(mandantId: string) {
+    setEditMandanten((prev) =>
+      prev.some((link) => link.mandantId === mandantId)
+        ? prev.filter((link) => link.mandantId !== mandantId)
+        : [...prev, { mandantId, role: 'MANDANT_USER' }]
+    );
+  }
+
+  function setMandantRole(mandantId: string, role: 'MANDANT_ADMIN' | 'MANDANT_USER') {
+    setEditMandanten((prev) =>
+      prev.map((link) => (link.mandantId === mandantId ? { ...link, role } : link))
+    );
   }
 
   async function saveEdit(userId: string) {
     setSaving(true);
     try {
+      const body: Record<string, unknown> = { role: editRole };
+      if (kind === 'WP') body.teamIds = editTeamIds;
+      else body.mandanten = editMandanten;
+
       await fetch(`/api/admin/users/${userId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: editRole }),
+        body: JSON.stringify(body),
       });
-      setEditingId(null);
+      cancelEdit();
       onRefresh();
     } finally {
       setSaving(false);
@@ -80,7 +128,7 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
 
   if (users.length === 0) {
     return (
-      <p className="text-sm text-dataly-slate py-6 text-center">
+      <p className="py-6 text-center text-sm text-dataly-slate">
         Keine {kind === 'WP' ? 'Kanzlei-Mitarbeiter' : 'Mandanten'} vorhanden.
       </p>
     );
@@ -102,16 +150,18 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
         {users.map((user) => (
           <TableRow key={user.id} className={user.status === 'DISABLED' ? 'opacity-50' : ''}>
             <TableCell className="font-medium">{user.name}</TableCell>
-            <TableCell className="text-dataly-slate text-sm">{user.email}</TableCell>
+            <TableCell className="text-sm text-dataly-slate">{user.email}</TableCell>
             <TableCell>
               {editingId === user.id ? (
                 <Select value={editRole} onValueChange={setEditRole}>
-                  <SelectTrigger className="h-7 text-xs w-36">
+                  <SelectTrigger className="h-7 w-36 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.map((r) => (
-                      <SelectItem key={r} value={r} className="text-xs">{ROLE_LABELS[r]}</SelectItem>
+                    {roles.map((role) => (
+                      <SelectItem key={role} value={role} className="text-xs">
+                        {ROLE_LABELS[role]}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -122,9 +172,18 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
               )}
             </TableCell>
             <TableCell className="text-sm text-dataly-slate">
-              {kind === 'WP'
-                ? user.teams.map((t) => t.team.name).join(', ') || '—'
-                : user.mandanten.map((m) => m.mandant.name).join(', ') || '—'}
+              <MembershipCell
+                user={user}
+                kind={kind}
+                editing={editingId === user.id}
+                teams={teams}
+                mandanten={mandanten}
+                editTeamIds={editTeamIds}
+                editMandanten={editMandanten}
+                onToggleTeam={toggleTeam}
+                onToggleMandant={toggleMandant}
+                onMandantRoleChange={setMandantRole}
+              />
             </TableCell>
             <TableCell>
               <Switch
@@ -136,15 +195,34 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
             <TableCell className="text-right">
               {editingId === user.id ? (
                 <div className="flex justify-end gap-1">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveEdit(user.id)} disabled={saving}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => saveEdit(user.id)}
+                    disabled={saving}
+                    aria-label="Aenderungen speichern"
+                  >
                     <Check className="h-3.5 w-3.5 text-dataly-success" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={cancelEdit}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={cancelEdit}
+                    aria-label="Bearbeitung abbrechen"
+                  >
                     <X className="h-3.5 w-3.5 text-dataly-muted" />
                   </Button>
                 </div>
               ) : (
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(user)}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => startEdit(user)}
+                  aria-label={`${user.name} bearbeiten`}
+                >
                   <Pencil className="h-3.5 w-3.5 text-dataly-muted" />
                 </Button>
               )}
@@ -155,3 +233,91 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
     </Table>
   );
 }
+
+function MembershipCell({
+  user,
+  kind,
+  editing,
+  teams,
+  mandanten,
+  editTeamIds,
+  editMandanten,
+  onToggleTeam,
+  onToggleMandant,
+  onMandantRoleChange,
+}: {
+  user: User;
+  kind: 'WP' | 'CLIENT';
+  editing: boolean;
+  teams: TeamOption[];
+  mandanten: MandantOption[];
+  editTeamIds: string[];
+  editMandanten: MandantSelection[];
+  onToggleTeam: (teamId: string) => void;
+  onToggleMandant: (mandantId: string) => void;
+  onMandantRoleChange: (mandantId: string, role: 'MANDANT_ADMIN' | 'MANDANT_USER') => void;
+}) {
+  if (!editing) {
+    if (kind === 'WP') return <>{user.teams.map((t) => t.team.name).join(', ') || '-'}</>;
+    return (
+      <>
+        {user.mandanten
+          .map((m) => `${m.mandant.name} (${ROLE_LABELS[m.role]})`)
+          .join(', ') || '-'}
+      </>
+    );
+  }
+
+  if (kind === 'WP') {
+    return (
+      <div className="max-h-32 min-w-44 space-y-1 overflow-y-auto">
+        {teams.map((team) => (
+          <label key={team.id} className="flex items-center gap-2 text-xs text-dataly-ink">
+            <Checkbox
+              checked={editTeamIds.includes(team.id)}
+              onCheckedChange={() => onToggleTeam(team.id)}
+            />
+            <span>{team.name}</span>
+          </label>
+        ))}
+        {teams.length === 0 && <span className="text-xs text-dataly-muted">Keine Teams</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-h-40 min-w-56 space-y-2 overflow-y-auto">
+      {mandanten.map((mandant) => {
+        const selected = editMandanten.find((link) => link.mandantId === mandant.id);
+        return (
+          <div key={mandant.id} className="space-y-1">
+            <label className="flex items-center gap-2 text-xs text-dataly-ink">
+              <Checkbox
+                checked={Boolean(selected)}
+                onCheckedChange={() => onToggleMandant(mandant.id)}
+              />
+              <span>{mandant.name}</span>
+            </label>
+            {selected && (
+              <NativeSelect
+                className="h-7 text-xs"
+                value={selected.role}
+                onChange={(event) =>
+                  onMandantRoleChange(
+                    mandant.id,
+                    event.target.value === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER'
+                  )
+                }
+              >
+                <option value="MANDANT_USER">Mandant Benutzer</option>
+                <option value="MANDANT_ADMIN">Mandant Admin</option>
+              </NativeSelect>
+            )}
+          </div>
+        );
+      })}
+      {mandanten.length === 0 && <span className="text-xs text-dataly-muted">Keine Mandanten</span>}
+    </div>
+  );
+}
+

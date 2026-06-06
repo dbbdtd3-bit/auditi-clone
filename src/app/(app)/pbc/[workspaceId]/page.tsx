@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
+import { auth } from '@/lib/auth';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,7 @@ import {
 import Link from 'next/link';
 import { CreateListDialog } from '@/components/pbc/create-list-dialog';
 import { AddMemberDialog } from '@/components/pbc/add-member-dialog';
+import { canAccessWorkspace } from '@/lib/pbc-access';
 
 interface PbcItemStatus {
   status: string;
@@ -58,6 +60,12 @@ export default async function WorkspacePage({
   params: Promise<{ workspaceId: string }>;
 }) {
   const { workspaceId } = await params;
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  if (!user?.id) notFound();
+  const isWp = user.role === 'WP_ADMIN' || user.role === 'WP_TEAM';
+  if (!await canAccessWorkspace(user.id, isWp, workspaceId)) notFound();
+
   const workspace = await getWorkspace(workspaceId);
 
   if (!workspace) notFound();
@@ -88,7 +96,7 @@ export default async function WorkspacePage({
             <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted">
               Anforderungslisten ({workspace.requestLists.length})
             </h2>
-            <CreateListDialog workspaceId={workspaceId} />
+            {isWp && <CreateListDialog workspaceId={workspaceId} />}
           </div>
 
           {workspace.requestLists.length === 0 ? (
@@ -145,7 +153,7 @@ export default async function WorkspacePage({
             <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted">
               Mitglieder ({workspace.members.length})
             </h2>
-            <AddMemberDialog workspaceId={workspaceId} />
+            {isWp && <AddMemberDialog workspaceId={workspaceId} />}
           </div>
 
           {workspace.members.length === 0 ? (

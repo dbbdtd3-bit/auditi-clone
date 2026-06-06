@@ -67,9 +67,16 @@ export async function POST(
     const list = await prisma.pbcRequestList.create({
       data: {
         workspaceId,
+        createdById: user.id,
         title,
         fromTemplate,
         items: templateItems.length > 0 ? { create: templateItems } : undefined,
+        notificationRecipients: {
+          create: {
+            userId: user.id,
+            audience: 'KANZLEI_UPLOADS',
+          },
+        },
       },
       include: { _count: { select: { items: true } } },
     });

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { getPresignedDownload } from '@/lib/obs';
 import { canAccessWorkspace, getItemContext } from '@/lib/pbc-access';
+import { enqueuePbcUploadDigest } from '@/lib/queue';
 
 const OBS_KEY_PATTERN = /^pbc\/\d+-[a-zA-Z0-9._-]+$/;
 
@@ -110,6 +111,23 @@ export async function POST(
 
       return created;
     });
+
+    if (!isWpUser(user)) {
+      const now = new Date();
+      const currentList = await prisma.pbcRequestList.findUnique({
+        where: { id: ctx.listId },
+        select: { uploadDigestStartedAt: true },
+      });
+
+      await prisma.pbcRequestList.update({
+        where: { id: ctx.listId },
+        data: {
+          uploadDigestStartedAt: currentList?.uploadDigestStartedAt ?? now,
+          uploadDigestLastActivityAt: now,
+        },
+      });
+      await enqueuePbcUploadDigest(ctx.listId);
+    }
 
     return NextResponse.json(file, { status: 201 });
   } catch (error) {

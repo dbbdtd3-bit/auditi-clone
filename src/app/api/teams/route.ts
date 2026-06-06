@@ -17,6 +17,11 @@ export async function GET() {
           user: { select: { id: true, name: true, email: true, role: true } },
         },
       },
+      mandanten: {
+        include: {
+          mandant: { select: { id: true, name: true, legalName: true } },
+        },
+      },
     },
     orderBy: { createdAt: 'asc' },
   });

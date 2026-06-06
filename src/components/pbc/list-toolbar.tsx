@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TemplateManagerSheet } from './template-manager-sheet';
 import { CreateItemDialog } from './create-item-dialog';
+import { ListNotificationSettings } from './list-notification-settings';
 
 interface ListToolbarProps {
   listId: string;
@@ -16,6 +17,7 @@ interface ListToolbarProps {
   totalItems: number;
   onMasterCheck: (checked: boolean) => void;
   onItemsChanged: () => void;
+  isWp: boolean;
 }
 
 export function ListToolbar({
@@ -26,6 +28,7 @@ export function ListToolbar({
   totalItems,
   onMasterCheck,
   onItemsChanged,
+  isWp,
 }: ListToolbarProps) {
   const [templateSheetOpen, setTemplateSheetOpen] = React.useState(false);
 
@@ -50,16 +53,22 @@ export function ListToolbar({
         />
       </div>
 
-      <Button
-        variant="outline"
-        onClick={() => setTemplateSheetOpen(true)}
-        className="shrink-0"
-      >
-        <LayoutTemplate className="h-4 w-4 mr-2" />
-        Vorlagen
-      </Button>
+      {isWp && (
+        <>
+          <Button
+            variant="outline"
+            onClick={() => setTemplateSheetOpen(true)}
+            className="shrink-0"
+          >
+            <LayoutTemplate className="h-4 w-4 mr-2" />
+            Vorlagen
+          </Button>
 
-      <CreateItemDialog listId={listId} />
+          <CreateItemDialog listId={listId} />
+        </>
+      )}
+
+      <ListNotificationSettings listId={listId} isWp={isWp} />
 
       <TemplateManagerSheet
         listId={listId}

@@ -29,7 +29,10 @@ export async function PATCH(
       ...(description !== undefined && { description: description.trim() }),
       ...(accentColor !== undefined && { accentColor: accentColor as never }),
     },
-    include: { members: { include: { user: { select: { id: true, name: true, email: true, role: true } } } } },
+    include: {
+      members: { include: { user: { select: { id: true, name: true, email: true, role: true } } } },
+      mandanten: { include: { mandant: { select: { id: true, name: true, legalName: true } } } },
+    },
   });
 
   await recordAudit({

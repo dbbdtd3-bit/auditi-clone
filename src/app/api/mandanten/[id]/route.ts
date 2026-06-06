@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { visibleMandantWhere } from '@/lib/mandant-access';
 
 export async function PUT(
   req: NextRequest,
@@ -12,6 +13,9 @@ export async function PUT(
     if (!isWpUser(user)) return forbidden();
 
     const { id } = await params;
+    const allowed = await prisma.mandant.count({ where: { id, ...visibleMandantWhere(user) } });
+    if (!allowed) return forbidden();
+
     const body = await req.json();
     const { name, legalName, taxId, address } = body as {
       name?: string;
@@ -47,6 +51,8 @@ export async function DELETE(
     if (!isWpUser(user)) return forbidden();
 
     const { id } = await params;
+    const allowed = await prisma.mandant.count({ where: { id, ...visibleMandantWhere(user) } });
+    if (!allowed) return forbidden();
 
     try {
       await prisma.$transaction(async (tx) => {

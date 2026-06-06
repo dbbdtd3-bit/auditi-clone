@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
+import { auth } from '@/lib/auth';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { CreateCampaignDialog } from '@/components/sba/create-campaign-dialog';
+import { canViewMandant } from '@/lib/mandant-permissions';
 
 type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 
@@ -85,6 +87,13 @@ export default async function EngagementDetailPage({
   ]);
 
   if (!engagement) notFound();
+  const session = await auth();
+  const sessionUser = session?.user as { id?: string; role?: string } | undefined;
+  if (!sessionUser?.id) notFound();
+  if (!await canViewMandant({ id: sessionUser.id, role: sessionUser.role }, engagement.mandantId)) {
+    notFound();
+  }
+  const isWp = sessionUser.role === 'WP_ADMIN' || sessionUser.role === 'WP_TEAM';
 
   const status = statusConfig[engagement.status] || { label: engagement.status, variant: 'outline' as const };
 
@@ -193,7 +202,7 @@ export default async function EngagementDetailPage({
             <h2 className="text-xs font-semibold uppercase tracking-wider text-dataly-muted">
               Saldenbestätigungen (SBA)
             </h2>
-            <CreateCampaignDialog engagementId={engagement.id} />
+            {isWp && <CreateCampaignDialog engagementId={engagement.id} />}
           </div>
 
           {campaigns.length === 0 ? (

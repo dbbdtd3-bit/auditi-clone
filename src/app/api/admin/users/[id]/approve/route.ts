@@ -46,7 +46,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       if (mandantIds && mandantIds.length > 0) {
         await tx.userMandant.createMany({
-          data: mandantIds.map((mandantId) => ({ mandantId, userId: id })),
+          data: mandantIds.map((mandantId) => ({
+            mandantId,
+            userId: id,
+            role: role === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER',
+          })),
           skipDuplicates: true,
         });
       }

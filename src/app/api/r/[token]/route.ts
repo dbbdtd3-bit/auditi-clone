@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getPublicPortalResult, requireRespondablePublicToken } from '@/lib/public-response';
 import { RequestStatus } from '@prisma/client';
+import { enqueueSbaResponseNotification } from '@/lib/queue';
 
 interface RouteParams {
   params: Promise<{ token: string }>;
@@ -90,6 +91,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         },
       }),
     ]);
+
+    await enqueueSbaResponseNotification(request.id);
 
     return NextResponse.json({ success: true, responseId: response.id });
   } catch (error) {

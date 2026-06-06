@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { NativeSelect } from '@/components/ui/select';
 import { UndoButton } from './undo-button';
-import { Loader2, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
 
 type AuditEntry = {
   id: string;
@@ -46,51 +46,53 @@ const ALL_ACTIONS = Object.keys(ACTION_LABELS);
 
 export function AuditLogTable() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [filterAction, setFilterAction] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const fetchEntries = useCallback(
-    async (nextCursor: string | null, reset: boolean) => {
-      const params = new URLSearchParams({ limit: '50' });
+    async () => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (filterAction) params.set('action', filterAction);
-      if (nextCursor) params.set('cursor', nextCursor);
 
       const res = await fetch(`/api/admin/audit-log?${params}`);
       const data = await res.json();
 
-      setEntries((prev) => (reset ? data.items : [...prev, ...data.items]));
-      setCursor(data.nextCursor);
-      setHasMore(!!data.nextCursor);
+      setEntries(Array.isArray(data.items) ? data.items : []);
+      setTotalPages(data.totalPages ?? 1);
+      setTotal(data.total ?? 0);
     },
-    [filterAction]
+    [filterAction, page, pageSize]
   );
 
   useEffect(() => {
     setLoading(true);
-    fetchEntries(null, true).finally(() => setLoading(false));
+    fetchEntries().finally(() => setLoading(false));
   }, [fetchEntries]);
-
-  async function loadMore() {
-    setLoadingMore(true);
-    await fetchEntries(cursor, false);
-    setLoadingMore(false);
-  }
 
   function refresh() {
     setLoading(true);
-    fetchEntries(null, true).finally(() => setLoading(false));
+    fetchEntries().finally(() => setLoading(false));
   }
+
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, idx) => {
+    const start = Math.min(Math.max(page - 1, 1), Math.max(totalPages - 2, 1));
+    return start + idx;
+  }).filter((p) => p <= totalPages);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <NativeSelect
           className="w-52 h-8 text-sm py-1"
           value={filterAction}
-          onChange={(e) => setFilterAction(e.target.value)}
+          onChange={(e) => {
+            setFilterAction(e.target.value);
+            setPage(1);
+          }}
         >
           <option value="">Alle Aktionen</option>
           {ALL_ACTIONS.map((a) => (
@@ -99,6 +101,20 @@ export function AuditLogTable() {
             </option>
           ))}
         </NativeSelect>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase text-dataly-muted">Eintraege</span>
+          <NativeSelect
+            className="h-8 w-20 text-sm py-1"
+            value={String(pageSize)}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </NativeSelect>
+        </div>
       </div>
 
       <div className="rounded-lg border border-dataly-line bg-dataly-surface overflow-hidden">
@@ -164,18 +180,43 @@ export function AuditLogTable() {
         )}
       </div>
 
-      {hasMore && (
-        <div className="flex justify-center pt-2">
+      {total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <p className="text-xs text-dataly-muted">
+            Seite {page} von {totalPages} · {total} Eintraege
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              disabled={page <= 1 || loading}
+              aria-label="Vorherige Seite"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {pageNumbers.map((pageNumber) => (
+              <Button
+                key={pageNumber}
+                variant={pageNumber === page ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setPage(pageNumber)}
+                disabled={loading}
+                className="w-9"
+              >
+                {pageNumber}
+              </Button>
+            ))}
           <Button
             variant="outline"
             size="sm"
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="gap-2"
+              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+              disabled={page >= totalPages || loading}
+              aria-label="Naechste Seite"
           >
-            {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
-            Weitere laden
+              <ChevronRight className="h-4 w-4" />
           </Button>
+          </div>
         </div>
       )}
     </div>

@@ -9,31 +9,37 @@ export async function GET(req: NextRequest) {
     if ('status' in authResult) return authResult;
 
     const { searchParams } = new URL(req.url);
-    const cursor = searchParams.get('cursor');
-    const limit = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 100);
+    const page = Math.max(parseInt(searchParams.get('page') ?? '1', 10), 1);
+    const requestedPageSize = parseInt(searchParams.get('pageSize') ?? '20', 10);
+    const pageSize = requestedPageSize === 50 ? 50 : 20;
     const action = searchParams.get('action');
     const actorId = searchParams.get('actorId');
+    const where = {
+      ...(action ? { action } : {}),
+      ...(actorId ? { actorId } : {}),
+    };
 
-    const entries = await prisma.auditLog.findMany({
-      where: {
-        ...(action ? { action } : {}),
-        ...(actorId ? { actorId } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
+    const [entries, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
 
-    const hasMore = entries.length > limit;
-    const items = hasMore ? entries.slice(0, limit) : entries;
-    const nextCursor = hasMore ? items[items.length - 1].id : null;
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
 
     return NextResponse.json({
-      items: items.map((e) => ({
+      items: entries.map((e) => ({
         ...e,
         undoable: UNDOABLE_ACTIONS.has(e.action) && !e.undone,
       })),
-      nextCursor,
+      page,
+      pageSize,
+      total,
+      totalPages,
     });
   } catch (error) {
     console.error('GET /api/admin/audit-log error:', error);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { visibleCampaignWhere } from '@/lib/mandant-access';
 
 const VALID_CAMPAIGN_STATUSES = ['DRAFT', 'ACTIVE', 'COMPLETED', 'ARCHIVED'] as const;
 
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!campaign) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     }
+    const allowed = await prisma.confirmationCampaign.count({
+      where: { id, ...visibleCampaignWhere(user) },
+    });
+    if (!allowed) return forbidden();
 
     return NextResponse.json(campaign);
   } catch (error) {
@@ -51,7 +56,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: `Ungültige Anfrage: status muss einer von ${VALID_CAMPAIGN_STATUSES.join(', ')} sein` }, { status: 400 });
     }
 
-    const campaign = await prisma.confirmationCampaign.findUnique({ where: { id } });
+    const campaign = await prisma.confirmationCampaign.findFirst({
+      where: { id, ...visibleCampaignWhere(user) },
+    });
     if (!campaign) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     }
@@ -89,6 +96,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!campaign) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     }
+    const allowed = await prisma.confirmationCampaign.count({
+      where: { id, ...visibleCampaignWhere(user) },
+    });
+    if (!allowed) return forbidden();
 
     if (campaign.status !== 'DRAFT') {
       return NextResponse.json({ error: 'Ungültige Anfrage: Nur DRAFT-Kampagnen können gelöscht werden' }, { status: 400 });

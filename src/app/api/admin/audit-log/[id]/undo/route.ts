@@ -60,7 +60,20 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
               });
             }
           }
-          if (Array.isArray(prev.mandantIds)) {
+          if (Array.isArray(prev.mandanten)) {
+            const mandanten = prev.mandanten as Array<{ mandantId: string; role?: string }>;
+            await tx.userMandant.deleteMany({ where: { userId: entry.entityId! } });
+            if (mandanten.length > 0) {
+              await tx.userMandant.createMany({
+                data: mandanten.map((link) => ({
+                  mandantId: link.mandantId,
+                  userId: entry.entityId!,
+                  role: link.role === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER',
+                })),
+                skipDuplicates: true,
+              });
+            }
+          } else if (Array.isArray(prev.mandantIds)) {
             await tx.userMandant.deleteMany({ where: { userId: entry.entityId! } });
             if ((prev.mandantIds as string[]).length > 0) {
               await tx.userMandant.createMany({

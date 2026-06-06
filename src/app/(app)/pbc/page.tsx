@@ -2,15 +2,12 @@ import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { PbcWorkspacesOverview } from '@/components/pbc/workspaces-overview';
+import { visiblePbcWorkspaceWhere } from '@/lib/mandant-access';
 
-const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
-
-async function getWorkspaces(userId: string | undefined, isWp: boolean) {
+async function getWorkspaces(user: { id?: string; role?: string } | undefined) {
   try {
     return await prisma.pbcWorkspace.findMany({
-      where: isWp
-        ? undefined
-        : { members: { some: { userId: userId ?? '' } } },
+      where: visiblePbcWorkspaceWhere({ id: user?.id ?? '', role: user?.role }),
       include: {
         engagement: {
           include: { mandant: true },
@@ -27,8 +24,7 @@ async function getWorkspaces(userId: string | undefined, isWp: boolean) {
 export default async function PbcPage() {
   const session = await auth();
   const user = session?.user as { id?: string; role?: string } | undefined;
-  const isWp = WP_ROLES.includes(user?.role ?? '');
-  const workspaces = await getWorkspaces(user?.id, isWp);
+  const workspaces = await getWorkspaces(user);
   const workspaceItems = workspaces.map((workspace) => ({
     id: workspace.id,
     createdAt: workspace.createdAt.toISOString(),

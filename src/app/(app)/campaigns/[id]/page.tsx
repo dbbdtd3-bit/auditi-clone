@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
+import { auth } from '@/lib/auth';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,8 @@ import { CampaignActions } from '@/components/sba/campaign-actions';
 import { AddRequestDialog } from '@/components/sba/add-request-dialog';
 import { ImportCsvDialog } from '@/components/sba/import-csv-dialog';
 import { RequestsTable } from '@/components/sba/requests-table';
+import { CampaignNotificationSettings } from '@/components/sba/campaign-notification-settings';
+import { canViewMandant } from '@/lib/mandant-permissions';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,6 +72,12 @@ export default async function CampaignDetailPage({
   const campaign = await getCampaign(id);
 
   if (!campaign) notFound();
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  if (!user?.id) notFound();
+  if (!await canViewMandant({ id: user.id, role: user.role }, campaign.engagement.mandantId)) {
+    notFound();
+  }
 
   const campStatus = campaignStatusConfig[campaign.status as CampaignStatus] ?? {
     label: campaign.status,
@@ -138,6 +147,9 @@ export default async function CampaignDetailPage({
           draftCount={draftCount}
           sentCount={sentOnlyCount}
         />
+        <div className="flex justify-end">
+          <CampaignNotificationSettings campaignId={id} />
+        </div>
 
         {/* Request List */}
         <div>

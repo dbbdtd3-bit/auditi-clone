@@ -40,9 +40,19 @@ interface Props {
   initialItems: Item[];
   initialComments: Comment[];
   initialActivities: Activity[];
+  currentUserId: string;
+  currentUserRole: string;
+  createdById: string | null;
 }
 
-export function ListPageClient({ listId, workspaceId, initialItems, initialComments, initialActivities }: Props) {
+export function ListPageClient({
+  listId,
+  workspaceId,
+  initialItems,
+  initialComments,
+  initialActivities,
+  currentUserRole,
+}: Props) {
   const router = useRouter();
   const [items, setItems] = React.useState(initialItems);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -79,6 +89,8 @@ export function ListPageClient({ listId, workspaceId, initialItems, initialComme
     router.refresh();
   }
 
+  const isWp = currentUserRole === 'WP_ADMIN' || currentUserRole === 'WP_TEAM';
+
   return (
     <div className="space-y-4">
       <ListToolbar
@@ -89,6 +101,7 @@ export function ListPageClient({ listId, workspaceId, initialItems, initialComme
         totalItems={filtered.length}
         onMasterCheck={handleMasterCheck}
         onItemsChanged={() => router.refresh()}
+        isWp={isWp}
       />
 
       <div className="grid grid-cols-3 gap-6">

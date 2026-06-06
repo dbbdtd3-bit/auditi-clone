@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { visibleCampaignWhere, visibleEngagementWhere } from '@/lib/mandant-access';
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,7 +13,10 @@ export async function GET(req: NextRequest) {
     const engagementId = searchParams.get('engagementId');
 
     const campaigns = await prisma.confirmationCampaign.findMany({
-      where: engagementId ? { engagementId } : undefined,
+      where: {
+        ...visibleCampaignWhere(user),
+        ...(engagementId ? { engagementId } : {}),
+      },
       include: {
         _count: { select: { requests: true } },
       },
@@ -39,7 +43,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ungültige Anfrage: engagementId, title und balanceDate sind Pflichtfelder' }, { status: 400 });
     }
 
-    const engagement = await prisma.engagement.findUnique({ where: { id: engagementId } });
+    const engagement = await prisma.engagement.findFirst({
+      where: { id: engagementId, ...visibleEngagementWhere(user) },
+    });
     if (!engagement) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     }
@@ -47,9 +53,13 @@ export async function POST(req: NextRequest) {
     const campaign = await prisma.confirmationCampaign.create({
       data: {
         engagementId,
+        createdById: user.id,
         title,
         balanceDate: new Date(balanceDate),
         status: 'DRAFT',
+        notificationRecipients: {
+          create: { userId: user.id },
+        },
       },
     });
 

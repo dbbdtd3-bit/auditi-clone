@@ -54,7 +54,7 @@ export function ApproveUserDialog({ user, open, onOpenChange, onApproved }: Appr
       fetch('/api/teams').then((r) => r.json()),
       fetch('/api/mandanten').then((r) => r.json()),
     ]).then(([t, m]) => {
-      setTeams(Array.isArray(t) ? t : []);
+      setTeams(Array.isArray(t?.teams) ? t.teams : []);
       setMandanten(Array.isArray(m) ? m : []);
     });
   }, [open]);

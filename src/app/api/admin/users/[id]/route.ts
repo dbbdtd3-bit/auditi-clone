@@ -3,6 +3,13 @@ import { prisma } from '@/lib/db';
 import { requireAdmin } from '@/lib/require-auth';
 import { recordAudit } from '@/lib/audit';
 
+const WP_ROLES = new Set(['WP_ADMIN', 'WP_TEAM']);
+const CLIENT_ROLES = new Set(['MANDANT_ADMIN', 'MANDANT_USER']);
+
+function toMandantRole(role: string | undefined): 'MANDANT_ADMIN' | 'MANDANT_USER' {
+  return role === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER';
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireAdmin();
@@ -26,6 +33,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
     });
     if (!existing) return NextResponse.json({ error: 'Benutzer nicht gefunden' }, { status: 404 });
+
+    if (role) {
+      if (existing.kind === 'WP' && !WP_ROLES.has(role)) {
+        return NextResponse.json({ error: 'Ungueltige Kanzlei-Rolle' }, { status: 400 });
+      }
+      if (existing.kind === 'CLIENT' && !CLIENT_ROLES.has(role)) {
+        return NextResponse.json({ error: 'Ungueltige Mandanten-Rolle' }, { status: 400 });
+      }
+    }
+
+    if (existing.kind === 'WP' && (mandanten !== undefined || mandantIds !== undefined)) {
+      return NextResponse.json({ error: 'Kanzlei-Benutzer koennen keinen Mandanten zugeordnet werden' }, { status: 400 });
+    }
+
+    if (existing.kind === 'CLIENT' && teamIds !== undefined) {
+      return NextResponse.json({ error: 'Mandanten-Benutzer koennen keinen Teams zugeordnet werden' }, { status: 400 });
+    }
 
     const prevState = {
       role: existing.role,
@@ -54,22 +78,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
 
       if (mandanten !== undefined || mandantIds !== undefined) {
-        const nextMandanten = mandanten ?? mandantIds?.map((mandantId) => ({
-          mandantId,
-          role: (role === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER') as 'MANDANT_ADMIN' | 'MANDANT_USER',
-        })) ?? [];
+        const nextMandantRole = toMandantRole(role ?? existing.role);
+        const nextMandantIds = Array.from(
+          new Set(
+            (mandanten ?? mandantIds?.map((mandantId) => ({ mandantId })) ?? [])
+              .map((link) => link.mandantId)
+              .filter((mandantId): mandantId is string => typeof mandantId === 'string' && mandantId.length > 0)
+          )
+        );
 
         await tx.userMandant.deleteMany({ where: { userId: id } });
-        if (nextMandanten.length > 0) {
+        if (nextMandantIds.length > 0) {
           await tx.userMandant.createMany({
-            data: nextMandanten.map((link) => ({
-              mandantId: link.mandantId,
+            data: nextMandantIds.map((mandantId) => ({
+              mandantId,
               userId: id,
-              role: link.role === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER',
+              role: nextMandantRole,
             })),
             skipDuplicates: true,
           });
         }
+      } else if (role && existing.kind === 'CLIENT') {
+        await tx.userMandant.updateMany({
+          where: { userId: id },
+          data: { role: toMandantRole(role) },
+        });
       }
     });
 

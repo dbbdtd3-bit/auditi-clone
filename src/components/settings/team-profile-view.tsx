@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Plus, Search, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TEAM_COLOR_HEX, TEAM_COLOR_LABEL } from '@/lib/team-colors';
 import { NewTeamDialog } from './new-team-dialog';
@@ -41,13 +42,21 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
-  const [selectedId, setSelectedId] = useState<string>(teams[0]?.id ?? '');
   const [newTeamOpen, setNewTeamOpen] = useState(false);
   const [allMandanten, setAllMandanten] = useState<MandantOption[]>([]);
   const [savingMandantId, setSavingMandantId] = useState<string | null>(null);
+  const [teamQuery, setTeamQuery] = useState('');
+  const [mandantQueries, setMandantQueries] = useState<Record<string, string>>({});
   const router = useRouter();
 
-  const selected = teams.find((t) => t.id === selectedId);
+  const normalizedTeamQuery = teamQuery.trim().toLowerCase();
+  const filteredTeams = normalizedTeamQuery
+    ? teams.filter((team) =>
+        [team.name, team.description ?? ''].some((value) =>
+          value.toLowerCase().includes(normalizedTeamQuery)
+        )
+      )
+    : teams;
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -57,16 +66,15 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
       .catch(() => setAllMandanten([]));
   }, [isAdmin]);
 
-  async function toggleMandant(mandantId: string, checked: boolean) {
-    if (!selected) return;
+  async function toggleMandant(team: Team, mandantId: string, checked: boolean) {
     setSavingMandantId(mandantId);
 
     const currentTeamIds = teams
       .filter((team) => team.mandanten.some((link) => link.mandant.id === mandantId))
       .map((team) => team.id);
     const nextTeamIds = checked
-      ? Array.from(new Set([...currentTeamIds, selected.id]))
-      : currentTeamIds.filter((teamId) => teamId !== selected.id);
+      ? Array.from(new Set([...currentTeamIds, team.id]))
+      : currentTeamIds.filter((teamId) => teamId !== team.id);
 
     await fetch(`/api/mandanten/${mandantId}/teams`, {
       method: 'PATCH',
@@ -76,6 +84,14 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
 
     setSavingMandantId(null);
     router.refresh();
+  }
+
+  function getFilteredMandanten(teamId: string) {
+    const query = (mandantQueries[teamId] ?? '').trim().toLowerCase();
+    if (!query) return allMandanten;
+    return allMandanten.filter((mandant) =>
+      [mandant.name, mandant.legalName ?? ''].some((value) => value.toLowerCase().includes(query))
+    );
   }
 
   if (teams.length === 0) {
@@ -98,157 +114,184 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {/* Team switcher dropdown */}
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="rounded-md border border-dataly-line bg-dataly-surface px-3 py-2 text-sm font-medium text-dataly-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dataly-blue"
-          >
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+    <div className="max-w-6xl space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dataly-muted" />
+          <Input
+            value={teamQuery}
+            onChange={(event) => setTeamQuery(event.target.value)}
+            placeholder="Teams suchen..."
+            className="h-10 pl-9"
+          />
         </div>
 
         {isAdmin && (
-          <Button size="sm" onClick={() => setNewTeamOpen(true)}>
+          <Button size="sm" className="sm:ml-auto" onClick={() => setNewTeamOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Neues Team
           </Button>
         )}
       </div>
 
-      {selected && (
-        <div className="rounded-xl border border-dataly-line bg-dataly-surface shadow-sm overflow-hidden">
-          {/* Team header */}
-          <div
-            className="h-2 w-full"
-            style={{ backgroundColor: TEAM_COLOR_HEX[selected.accentColor] ?? '#3b82f6' }}
-          />
-          <div className="p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-dataly-ink">{selected.name}</h2>
-                {selected.description && (
-                  <p className="mt-1 text-sm text-dataly-slate">{selected.description}</p>
-                )}
-                <p className="mt-1 text-xs text-dataly-muted">
-                  Akzentfarbe: {TEAM_COLOR_LABEL[selected.accentColor] ?? selected.accentColor}
-                </p>
-              </div>
-              {isAdmin && (
-                <ColorPicker
-                  teamId={selected.id}
-                  current={selected.accentColor}
-                  onUpdated={() => router.refresh()}
-                />
-              )}
-            </div>
+      {filteredTeams.length === 0 ? (
+        <div className="rounded-lg border border-dataly-line bg-dataly-surface px-5 py-8 text-center">
+          <p className="text-sm font-medium text-dataly-ink">Kein Team gefunden.</p>
+          <p className="mt-1 text-sm text-dataly-slate">Passen Sie die Suche an oder legen Sie ein neues Team an.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {filteredTeams.map((team) => {
+            const filteredMandanten = getFilteredMandanten(team.id);
+            const mandantQuery = mandantQueries[team.id] ?? '';
 
-            {/* Members */}
-            <div className="mt-6">
-              <p className="text-xs font-semibold uppercase tracking-wider text-dataly-muted mb-3">
-                Mitglieder ({selected.members.length})
-              </p>
-              <div className="space-y-2">
-                {selected.members.map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between rounded-lg border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-dataly-ink">{m.user.name}</p>
-                      <p className="text-xs text-dataly-slate">{m.user.email}</p>
+            return (
+              <div key={team.id} className="overflow-hidden rounded-lg border border-dataly-line bg-dataly-surface shadow-sm">
+                <div
+                  className="h-2 w-full"
+                  style={{ backgroundColor: TEAM_COLOR_HEX[team.accentColor] ?? '#3b82f6' }}
+                />
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-semibold text-dataly-ink">{team.name}</h2>
+                      {team.description && (
+                        <p className="mt-1 text-sm leading-5 text-dataly-slate">{team.description}</p>
+                      )}
+                      <p className="mt-1 text-xs text-dataly-muted">
+                        Akzentfarbe: {TEAM_COLOR_LABEL[team.accentColor] ?? team.accentColor}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {ROLE_LABEL[m.user.role] ?? m.user.role}
-                      </Badge>
-                      {m.user.id === currentUserId && (
-                        <Badge className="text-xs bg-dataly-info-soft text-dataly-blue border-0">Ich</Badge>
+                    {isAdmin && (
+                      <ColorPicker
+                        teamId={team.id}
+                        current={team.accentColor}
+                        onUpdated={() => router.refresh()}
+                      />
+                    )}
+                  </div>
+
+                  <div className="mt-6">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-dataly-muted">
+                      Mitglieder ({team.members.length})
+                    </p>
+                    <div className="space-y-2">
+                      {team.members.map((member) => (
+                        <div
+                          key={member.id}
+                          className="flex items-center justify-between gap-3 rounded-md border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-dataly-ink">{member.user.name}</p>
+                            <p className="truncate text-xs text-dataly-slate">{member.user.email}</p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {ROLE_LABEL[member.user.role] ?? member.user.role}
+                            </Badge>
+                            {member.user.id === currentUserId && (
+                              <Badge className="border-0 bg-dataly-info-soft text-xs text-dataly-blue">Ich</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {team.members.length === 0 && (
+                        <p className="rounded-md border border-dashed border-dataly-line bg-dataly-surface-subtle px-4 py-3 text-sm text-dataly-muted">
+                          Keine Mitglieder.
+                        </p>
                       )}
                     </div>
                   </div>
-                ))}
-                {selected.members.length === 0 && (
-                  <p className="text-sm text-dataly-muted px-1">Keine Mitglieder.</p>
-                )}
-              </div>
-            </div>
 
-            <div className="mt-6">
-              <p className="text-xs font-semibold uppercase tracking-wider text-dataly-muted mb-3">
-                Mandanten ({selected.mandanten.length})
-              </p>
-              {isAdmin ? (
-                <div className="grid gap-2">
-                  {allMandanten.map((mandant) => {
-                    const checked = selected.mandanten.some((link) => link.mandant.id === mandant.id);
-                    return (
-                      <label
-                        key={mandant.id}
-                        className="flex items-center justify-between rounded-lg border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5 text-sm"
-                      >
-                        <span>
-                          <span className="block font-medium text-dataly-ink">{mandant.name}</span>
-                          {mandant.legalName && mandant.legalName !== mandant.name && (
-                            <span className="block text-xs text-dataly-muted">{mandant.legalName}</span>
-                          )}
-                        </span>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-dataly-blue"
-                          checked={checked}
-                          disabled={savingMandantId === mandant.id}
-                          onChange={(event) => toggleMandant(mandant.id, event.target.checked)}
-                        />
-                      </label>
-                    );
-                  })}
-                  {allMandanten.length === 0 && (
-                    <p className="text-sm text-dataly-muted px-1">Keine Mandanten vorhanden.</p>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selected.mandanten.map((link) => (
-                    <div
-                      key={link.mandant.id}
-                      className="rounded-lg border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5"
-                    >
-                      <p className="text-sm font-medium text-dataly-ink">{link.mandant.name}</p>
-                      {link.mandant.legalName && (
-                        <p className="text-xs text-dataly-slate">{link.mandant.legalName}</p>
-                      )}
+                  <div className="mt-6">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-dataly-muted">
+                        Mandanten ({team.mandanten.length})
+                      </p>
                     </div>
-                  ))}
-                  {selected.mandanten.length === 0 && (
-                    <p className="text-sm text-dataly-muted px-1">Keine Mandanten zugeordnet.</p>
+                    {isAdmin && (
+                      <div className="relative mb-3">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dataly-muted" />
+                        <Input
+                          value={mandantQuery}
+                          onChange={(event) =>
+                            setMandantQueries((prev) => ({ ...prev, [team.id]: event.target.value }))
+                          }
+                          placeholder="Mandanten suchen..."
+                          className="h-9 pl-9 text-sm"
+                        />
+                      </div>
+                    )}
+                    {isAdmin ? (
+                      <div className="grid max-h-72 gap-2 overflow-y-auto pr-1">
+                        {filteredMandanten.map((mandant) => {
+                          const checked = team.mandanten.some((link) => link.mandant.id === mandant.id);
+                          return (
+                            <label
+                              key={mandant.id}
+                              className="flex items-center justify-between gap-3 rounded-md border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5 text-sm"
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium text-dataly-ink">{mandant.name}</span>
+                                {mandant.legalName && mandant.legalName !== mandant.name && (
+                                  <span className="block truncate text-xs text-dataly-muted">{mandant.legalName}</span>
+                                )}
+                              </span>
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 shrink-0 accent-dataly-blue"
+                                checked={checked}
+                                disabled={savingMandantId === mandant.id}
+                                onChange={(event) => toggleMandant(team, mandant.id, event.target.checked)}
+                              />
+                            </label>
+                          );
+                        })}
+                        {allMandanten.length === 0 && (
+                          <p className="rounded-md border border-dashed border-dataly-line bg-dataly-surface-subtle px-4 py-3 text-sm text-dataly-muted">
+                            Keine Mandanten vorhanden.
+                          </p>
+                        )}
+                        {allMandanten.length > 0 && filteredMandanten.length === 0 && (
+                          <p className="rounded-md border border-dashed border-dataly-line bg-dataly-surface-subtle px-4 py-3 text-sm text-dataly-muted">
+                            Kein Mandant gefunden.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {team.mandanten.map((link) => (
+                          <div
+                            key={link.mandant.id}
+                            className="rounded-md border border-dataly-line bg-dataly-surface-subtle px-4 py-2.5"
+                          >
+                            <p className="truncate text-sm font-medium text-dataly-ink">{link.mandant.name}</p>
+                            {link.mandant.legalName && (
+                              <p className="truncate text-xs text-dataly-slate">{link.mandant.legalName}</p>
+                            )}
+                          </div>
+                        ))}
+                        {team.mandanten.length === 0 && (
+                          <p className="rounded-md border border-dashed border-dataly-line bg-dataly-surface-subtle px-4 py-3 text-sm text-dataly-muted">
+                            Keine Mandanten zugeordnet.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {isAdmin && (
+                    <div className="mt-6 flex justify-end border-t border-dataly-line pt-4">
+                      <DeleteTeamButton
+                        teamId={team.id}
+                        teamName={team.name}
+                        onDeleted={() => router.refresh()}
+                      />
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-
-            {/* Admin: Delete Team */}
-            {isAdmin && (
-              <div className="mt-6 pt-4 border-t border-dataly-line flex justify-end">
-                <DeleteTeamButton
-                  teamId={selected.id}
-                  teamName={selected.name}
-                  onDeleted={() => {
-                    const remaining = teams.filter((t) => t.id !== selected.id);
-                    setSelectedId(remaining[0]?.id ?? '');
-                    router.refresh();
-                  }}
-                />
               </div>
-            )}
-          </div>
+            );
+          })}
         </div>
       )}
 
@@ -257,7 +300,7 @@ export function TeamProfileView({ teams, currentUserId, isAdmin }: Props) {
         onOpenChange={setNewTeamOpen}
         onCreated={(newId) => {
           router.refresh();
-          if (newId) setSelectedId(newId);
+          if (newId) setTeamQuery('');
         }}
       />
     </div>

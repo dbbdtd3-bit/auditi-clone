@@ -5,9 +5,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
-import { NativeSelect, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Check, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Check, ChevronDown, Pencil, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type User = {
   id: string;
@@ -34,6 +43,10 @@ const ROLE_LABELS: Record<string, string> = {
 
 const WP_ROLES = ['WP_ADMIN', 'WP_TEAM'];
 const CLIENT_ROLES = ['MANDANT_ADMIN', 'MANDANT_USER'];
+
+function normalizeMandantRole(role: string): 'MANDANT_ADMIN' | 'MANDANT_USER' {
+  return role === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER';
+}
 
 interface ActiveUsersTableProps {
   users: User[];
@@ -85,14 +98,16 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
     setEditMandanten((prev) =>
       prev.some((link) => link.mandantId === mandantId)
         ? prev.filter((link) => link.mandantId !== mandantId)
-        : [...prev, { mandantId, role: 'MANDANT_USER' }]
+        : [...prev, { mandantId, role: normalizeMandantRole(editRole) }]
     );
   }
 
-  function setMandantRole(mandantId: string, role: 'MANDANT_ADMIN' | 'MANDANT_USER') {
-    setEditMandanten((prev) =>
-      prev.map((link) => (link.mandantId === mandantId ? { ...link, role } : link))
-    );
+  function handleRoleChange(role: string) {
+    setEditRole(role);
+    if (kind === 'CLIENT') {
+      const mandantRole = normalizeMandantRole(role);
+      setEditMandanten((prev) => prev.map((link) => ({ ...link, role: mandantRole })));
+    }
   }
 
   async function saveEdit(userId: string) {
@@ -100,7 +115,13 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
     try {
       const body: Record<string, unknown> = { role: editRole };
       if (kind === 'WP') body.teamIds = editTeamIds;
-      else body.mandanten = editMandanten;
+      else {
+        const mandantRole = normalizeMandantRole(editRole);
+        body.mandanten = editMandanten.map((link) => ({
+          mandantId: link.mandantId,
+          role: mandantRole,
+        }));
+      }
 
       await fetch(`/api/admin/users/${userId}`, {
         method: 'PATCH',
@@ -140,8 +161,9 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
         <TableRow>
           <TableHead>Name</TableHead>
           <TableHead>E-Mail</TableHead>
+          {kind === 'CLIENT' && <TableHead>Mandanten</TableHead>}
           <TableHead>Rolle</TableHead>
-          <TableHead>{kind === 'WP' ? 'Teams' : 'Mandanten'}</TableHead>
+          {kind === 'WP' && <TableHead>Teams</TableHead>}
           <TableHead>Aktiv</TableHead>
           <TableHead className="text-right">Aktion</TableHead>
         </TableRow>
@@ -151,9 +173,24 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
           <TableRow key={user.id} className={user.status === 'DISABLED' ? 'opacity-50' : ''}>
             <TableCell className="font-medium">{user.name}</TableCell>
             <TableCell className="text-sm text-dataly-slate">{user.email}</TableCell>
+            {kind === 'CLIENT' && (
+              <TableCell className="text-sm text-dataly-slate">
+                <MembershipCell
+                  user={user}
+                  kind={kind}
+                  editing={editingId === user.id}
+                  teams={teams}
+                  mandanten={mandanten}
+                  editTeamIds={editTeamIds}
+                  editMandanten={editMandanten}
+                  onToggleTeam={toggleTeam}
+                  onToggleMandant={toggleMandant}
+                />
+              </TableCell>
+            )}
             <TableCell>
               {editingId === user.id ? (
-                <Select value={editRole} onValueChange={setEditRole}>
+                <Select value={editRole} onValueChange={handleRoleChange}>
                   <SelectTrigger className="h-7 w-36 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -171,20 +208,21 @@ export function ActiveUsersTable({ users, kind, onRefresh }: ActiveUsersTablePro
                 </Badge>
               )}
             </TableCell>
-            <TableCell className="text-sm text-dataly-slate">
-              <MembershipCell
-                user={user}
-                kind={kind}
-                editing={editingId === user.id}
-                teams={teams}
-                mandanten={mandanten}
-                editTeamIds={editTeamIds}
-                editMandanten={editMandanten}
-                onToggleTeam={toggleTeam}
-                onToggleMandant={toggleMandant}
-                onMandantRoleChange={setMandantRole}
-              />
-            </TableCell>
+            {kind === 'WP' && (
+              <TableCell className="text-sm text-dataly-slate">
+                <MembershipCell
+                  user={user}
+                  kind={kind}
+                  editing={editingId === user.id}
+                  teams={teams}
+                  mandanten={mandanten}
+                  editTeamIds={editTeamIds}
+                  editMandanten={editMandanten}
+                  onToggleTeam={toggleTeam}
+                  onToggleMandant={toggleMandant}
+                />
+              </TableCell>
+            )}
             <TableCell>
               <Switch
                 checked={user.status === 'ACTIVE'}
@@ -244,7 +282,6 @@ function MembershipCell({
   editMandanten,
   onToggleTeam,
   onToggleMandant,
-  onMandantRoleChange,
 }: {
   user: User;
   kind: 'WP' | 'CLIENT';
@@ -255,69 +292,108 @@ function MembershipCell({
   editMandanten: MandantSelection[];
   onToggleTeam: (teamId: string) => void;
   onToggleMandant: (mandantId: string) => void;
-  onMandantRoleChange: (mandantId: string, role: 'MANDANT_ADMIN' | 'MANDANT_USER') => void;
 }) {
   if (!editing) {
     if (kind === 'WP') return <>{user.teams.map((t) => t.team.name).join(', ') || '-'}</>;
-    return (
-      <>
-        {user.mandanten
-          .map((m) => `${m.mandant.name} (${ROLE_LABELS[m.role]})`)
-          .join(', ') || '-'}
-      </>
-    );
+    return <>{user.mandanten.map((m) => m.mandant.name).join(', ') || '-'}</>;
   }
 
   if (kind === 'WP') {
     return (
-      <div className="max-h-32 min-w-44 space-y-1 overflow-y-auto">
-        {teams.map((team) => (
-          <label key={team.id} className="flex items-center gap-2 text-xs text-dataly-ink">
-            <Checkbox
-              checked={editTeamIds.includes(team.id)}
-              onCheckedChange={() => onToggleTeam(team.id)}
-            />
-            <span>{team.name}</span>
-          </label>
-        ))}
-        {teams.length === 0 && <span className="text-xs text-dataly-muted">Keine Teams</span>}
-      </div>
+      <MultiSelectDropdown
+        options={teams}
+        selectedIds={editTeamIds}
+        onToggle={onToggleTeam}
+        placeholder="Teams wählen"
+        searchPlaceholder="Teams suchen..."
+        emptyLabel="Keine Teams"
+      />
     );
   }
 
   return (
-    <div className="max-h-40 min-w-56 space-y-2 overflow-y-auto">
-      {mandanten.map((mandant) => {
-        const selected = editMandanten.find((link) => link.mandantId === mandant.id);
-        return (
-          <div key={mandant.id} className="space-y-1">
-            <label className="flex items-center gap-2 text-xs text-dataly-ink">
-              <Checkbox
-                checked={Boolean(selected)}
-                onCheckedChange={() => onToggleMandant(mandant.id)}
-              />
-              <span>{mandant.name}</span>
-            </label>
-            {selected && (
-              <NativeSelect
-                className="h-7 text-xs"
-                value={selected.role}
-                onChange={(event) =>
-                  onMandantRoleChange(
-                    mandant.id,
-                    event.target.value === 'MANDANT_ADMIN' ? 'MANDANT_ADMIN' : 'MANDANT_USER'
-                  )
-                }
-              >
-                <option value="MANDANT_USER">Mandant Benutzer</option>
-                <option value="MANDANT_ADMIN">Mandant Admin</option>
-              </NativeSelect>
-            )}
-          </div>
-        );
-      })}
-      {mandanten.length === 0 && <span className="text-xs text-dataly-muted">Keine Mandanten</span>}
-    </div>
+    <MultiSelectDropdown
+      options={mandanten}
+      selectedIds={editMandanten.map((link) => link.mandantId)}
+      onToggle={onToggleMandant}
+      placeholder="Mandanten wählen"
+      searchPlaceholder="Mandanten suchen..."
+      emptyLabel="Keine Mandanten"
+      widthClassName="w-64"
+    />
   );
 }
 
+function MultiSelectDropdown({
+  options,
+  selectedIds,
+  onToggle,
+  placeholder,
+  searchPlaceholder,
+  emptyLabel,
+  widthClassName = 'w-52',
+}: {
+  options: Array<{ id: string; name: string }>;
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+  emptyLabel: string;
+  widthClassName?: string;
+}) {
+  const selectedOptions = options.filter((option) => selectedIds.includes(option.id));
+  const label =
+    selectedOptions.length === 0
+      ? placeholder
+      : selectedOptions.length === 1
+        ? selectedOptions[0].name
+        : `${selectedOptions.length} ausgewählt`;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn('h-7 justify-between gap-2 px-2 text-xs font-normal', widthClassName)}
+        >
+          <span className={cn('truncate', selectedOptions.length === 0 && 'text-dataly-muted')}>
+            {label}
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 text-dataly-muted" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-0">
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>{emptyLabel}</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => {
+                const selected = selectedIds.includes(option.id);
+                return (
+                  <CommandItem
+                    key={option.id}
+                    value={option.name}
+                    onSelect={() => onToggle(option.id)}
+                    className="cursor-pointer"
+                  >
+                    <span
+                      className={cn(
+                        'flex h-4 w-4 items-center justify-center rounded-sm border border-dataly-line',
+                        selected && 'border-dataly-blue bg-dataly-blue text-white'
+                      )}
+                    >
+                      {selected && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="truncate text-dataly-ink">{option.name}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}

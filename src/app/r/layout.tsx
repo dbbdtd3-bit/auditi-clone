@@ -12,7 +12,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
             <span className="font-semibold text-dataly-ink">Dataly</span>
             <span className="hidden text-sm text-dataly-muted sm:inline">Antwortportal</span>
           </div>
-          <span className="rounded-full border border-dataly-line bg-dataly-surface-subtle px-2.5 py-1 text-xs font-semibold text-dataly-teal">
+          <span className="rounded-full border border-dataly-line bg-dataly-surface-subtle px-2.5 py-1 text-xs font-semibold text-dataly-blue">
             Sicherer Link
           </span>
         </div>

@@ -26,14 +26,18 @@ export function PublicRequestSummary({ request }: { request: PublicRequestData }
   const balanceFormatted = formatBalance(request.expectedBalance, request.currency);
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
+      <div className="border-b border-dataly-line bg-dataly-surface-subtle px-5 py-4">
+        <p className="text-xs font-semibold uppercase text-dataly-blue">Saldobestätigung</p>
+        <h2 className="mt-1 text-base font-semibold leading-6 text-dataly-ink">Angefragter Saldo</h2>
+      </div>
       <CardContent className="p-5">
-        <div className="mb-5 flex flex-col gap-3 border-b border-dataly-line pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mb-5 flex flex-col gap-3 border-b border-dataly-line pb-4">
           <div>
-            <p className="text-xs font-semibold uppercase text-dataly-teal">Saldobestätigung</p>
-            <h2 className="mt-1 text-[22px] font-semibold leading-[30px] text-dataly-ink">
+            <p className="text-xs font-semibold text-dataly-slate">Ansprechpartner</p>
+            <h3 className="mt-1 text-[22px] font-semibold leading-[30px] text-dataly-ink">
               {request.partnerName}
-            </h2>
+            </h3>
             <p className="text-sm leading-[22px] text-dataly-slate">{request.partnerEmail}</p>
           </div>
           <Badge variant="info">Link gültig bis {formatDate(request.tokenExpiresAt)}</Badge>

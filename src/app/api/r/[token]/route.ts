@@ -34,12 +34,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await req.json();
-    const { respondedBy, confirmedBalance, hasDifference, differenceNote, attachmentKey } = body;
+    const { respondedBy, confirmedBalance, hasDifference, differenceNote, attachmentKey, privacyAccepted } = body;
 
     // Validierung
     if (!respondedBy || typeof respondedBy !== 'string' || respondedBy.trim() === '') {
       return NextResponse.json(
         { error: 'Name des Antwortenden ist erforderlich' },
+        { status: 400 }
+      );
+    }
+
+    if (privacyAccepted !== true) {
+      return NextResponse.json(
+        { error: 'Bitte stimmen Sie der Verwendung Ihrer Angaben zur Prüfungsdokumentation zu.' },
         { status: 400 }
       );
     }

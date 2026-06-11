@@ -7,7 +7,7 @@ import type {
   PublicPortalState,
   PublicRequestData,
 } from '@/lib/public-response';
-import { AlertCircle, AlertTriangle, CheckCircle, Clock, Loader2, Paperclip, ShieldCheck, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, Clock, FileCheck2, Loader2, Paperclip, Send, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -141,6 +141,7 @@ export function ResponsePortal({
         hasDifference,
         differenceNote: differenceNote.trim() || null,
         attachmentKey: uploadedKey ?? null,
+        privacyAccepted,
       };
 
       if (hasDifference && confirmedBalance.trim() !== '') {
@@ -217,16 +218,18 @@ export function ResponsePortal({
   if (!requestData) return null;
 
   const balanceFormatted = formatBalance(requestData.expectedBalance, requestData.currency);
+  const canSubmit = privacyAccepted && !isSubmitting && !isUploading;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <section className="rounded-lg border border-dataly-line bg-white p-5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-dataly-teal text-white">
+    <div className="mx-auto max-w-5xl space-y-6">
+      <section className="rounded-lg border border-dataly-line bg-white p-5 shadow-[0_1px_2px_rgba(16,32,51,0.04)]">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-dataly-navy text-white">
             <ShieldCheck className="h-5 w-5" />
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase text-dataly-teal">Sicheres Antwortportal</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase text-dataly-blue">Dataly Antwortportal</p>
             <h1 className="mt-1 text-[28px] font-semibold leading-9 text-dataly-ink">
               Saldo bestätigen
             </h1>
@@ -235,12 +238,38 @@ export function ResponsePortal({
               direkt an Dataly zurück.
             </p>
           </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 rounded-md border border-dataly-line bg-dataly-surface-subtle px-3 py-2 text-xs font-semibold text-dataly-slate">
+            <FileCheck2 className="h-4 w-4 text-dataly-blue" />
+            <span>{requestData.clientName}</span>
+          </div>
         </div>
       </section>
 
-      <PublicRequestSummary request={requestData} />
+      <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
+        <div className="space-y-5 lg:sticky lg:top-6">
+          <PublicRequestSummary request={requestData} />
 
-      <Card>
+          <section className="rounded-lg border border-dataly-line bg-white p-4 text-sm leading-[22px] text-dataly-slate">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-dataly-info-soft text-dataly-info">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-dataly-ink">Sichere Übermittlung</h2>
+                <p className="mt-1">
+                  Ihre Antwort wird verschlüsselt übertragen und direkt dem Prüfungsnachweis zugeordnet.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-dataly-line bg-dataly-surface-subtle px-5 py-4">
+          <p className="text-xs font-semibold uppercase text-dataly-slate">Rückmeldung erfassen</p>
+          <h2 className="mt-1 text-base font-semibold leading-6 text-dataly-ink">Ihre Bestätigung</h2>
+        </div>
         <CardContent className="p-5">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
@@ -265,14 +294,14 @@ export function ResponsePortal({
               <label
                 className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
                   !hasDifference
-                    ? 'border-dataly-success bg-dataly-success-soft'
+                    ? 'border-dataly-blue bg-dataly-info-soft'
                     : 'border-dataly-line hover:border-dataly-line-strong'
                 }`}
               >
                 <input
                   type="radio"
                   name="hasDifference"
-                  className="mt-1 accent-dataly-success"
+                  className="mt-1 accent-dataly-blue"
                   checked={!hasDifference}
                   onChange={() => setHasDifference(false)}
                 />
@@ -409,14 +438,17 @@ export function ResponsePortal({
               </div>
             ) : null}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting || isUploading}>
+            <Button type="submit" className="w-full" disabled={!canSubmit}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Wird übermittelt...
                 </>
               ) : (
-                'Antwort absenden'
+                <>
+                  <Send className="h-4 w-4" />
+                  Antwort absenden
+                </>
               )}
             </Button>
 
@@ -426,6 +458,7 @@ export function ResponsePortal({
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

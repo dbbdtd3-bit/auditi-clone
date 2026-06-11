@@ -199,7 +199,7 @@ new Worker(
 
     const { requestId } = job.data as { requestId: string };
 
-    const request = await prisma.confirmationRequest.findUniqueOrThrow({
+    const request = await prisma.confirmationRequest.findUnique({
       where: { id: requestId },
       include: {
         campaign: {
@@ -211,6 +211,10 @@ new Worker(
         },
       },
     });
+    if (!request) {
+      console.log(`[worker] Skipped ${job.name}: request ${requestId} no longer exists`);
+      return;
+    }
 
     const portalUrl = `${process.env.NEXTAUTH_URL}/r/${request.publicToken}`;
     const emailData = {

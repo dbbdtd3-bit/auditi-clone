@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Bell, Edit2, Mail, Send, Trash2 } from 'lucide-react';
 import { RequestAuditLog } from './request-audit-log';
+import { RequestResponseDetails } from './request-response-details';
 
 type RequestStatus = 'DRAFT' | 'QUEUED' | 'SENT' | 'RESPONDED' | 'CLOSED' | 'BOUNCED';
 type RequestAction = 'send' | 'remind';
@@ -39,7 +40,7 @@ interface RequestRow {
   sentAt: Date | string | null;
   respondedAt: Date | string | null;
   reminderCount: number;
-  response: unknown | null;
+  response: { hasDifference?: boolean | null } | null;
 }
 
 interface Props {
@@ -60,6 +61,11 @@ const requestStatusConfig: Record<
   RESPONDED: { label: 'Beantwortet', variant: 'success' },
   CLOSED: { label: 'Geschlossen', variant: 'secondary' },
   BOUNCED: { label: 'Unzustellbar', variant: 'destructive' },
+};
+
+const differenceStatusConfig = {
+  label: 'Differenz gemeldet',
+  variant: 'warning' as const,
 };
 
 function formatDate(date: Date | string | null | undefined): string {
@@ -100,7 +106,7 @@ function canEditRequest(req: RequestRow, campaignLocked: boolean) {
 }
 
 function canDeleteRequest(req: RequestRow, campaignLocked: boolean) {
-  return !campaignLocked && req.status === 'DRAFT';
+  return !campaignLocked && ['DRAFT', 'QUEUED', 'SENT', 'BOUNCED'].includes(req.status);
 }
 
 function canSendRequest(req: RequestRow, campaignLocked: boolean) {
@@ -116,11 +122,15 @@ function EditRequestDialog({
   request,
   open,
   onOpenChange,
+  canDelete,
+  onDeleteRequest,
 }: {
   campaignId: string;
   request: RequestRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  canDelete: boolean;
+  onDeleteRequest: (request: RequestRow) => void;
 }) {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
@@ -276,14 +286,34 @@ function EditRequestDialog({
             </p>
           )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-              Abbrechen
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Speichert...' : 'Speichern'}
-            </Button>
-          </DialogFooter>
+          <div className="flex flex-col gap-2 border-t border-dataly-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+            {request && canDelete ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-dataly-danger/30 text-dataly-danger hover:bg-dataly-danger-soft hover:text-dataly-danger"
+                onClick={() => {
+                  onOpenChange(false);
+                  onDeleteRequest(request);
+                }}
+                disabled={loading}
+              >
+                <Trash2 className="h-4 w-4" />
+                Partner entfernen
+              </Button>
+            ) : (
+              <span />
+            )}
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Speichert...' : 'Speichern'}
+              </Button>
+            </div>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
@@ -341,7 +371,7 @@ function DeleteRequestDialog({
           <DialogTitle>Partner löschen</DialogTitle>
           <DialogDescription>
             {request?.partnerName
-              ? `${request.partnerName} wird aus dieser Kampagne entfernt. Bereits versendete oder beantwortete Anfragen bleiben aus Audit-Gründen erhalten.`
+              ? `${request.partnerName} wird aus dieser Kampagne entfernt. Bereits beantwortete oder geschlossene Anfragen bleiben aus Audit-Gründen geschützt.`
               : 'Dieser Partner wird aus der Kampagne entfernt.'}
           </DialogDescription>
         </DialogHeader>
@@ -486,10 +516,13 @@ export function RequestsTable({ campaignId, campaignStatus, requests }: Props) {
               </thead>
               <tbody className="divide-y divide-dataly-line">
                 {requests.map((req) => {
-                  const reqStatus = requestStatusConfig[req.status as RequestStatus] ?? {
-                    label: req.status,
-                    variant: 'outline' as const,
-                  };
+                  const reqStatus =
+                    req.status === 'RESPONDED' && req.response?.hasDifference
+                      ? differenceStatusConfig
+                      : requestStatusConfig[req.status as RequestStatus] ?? {
+                          label: req.status,
+                          variant: 'outline' as const,
+                        };
                   const isSelected = req.id === selectedId;
                   const sendLoading =
                     actionLoading?.id === req.id && actionLoading.action === 'send';
@@ -627,12 +660,15 @@ export function RequestsTable({ campaignId, campaignStatus, requests }: Props) {
         </Card>
 
         {selectedRequest && (
-          <RequestAuditLog
-            campaignId={campaignId}
-            requestId={selectedRequest.id}
-            partnerName={selectedRequest.partnerName}
-            onClose={() => setSelectedId(null)}
-          />
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.85fr)]">
+            <RequestResponseDetails campaignId={campaignId} request={selectedRequest} />
+            <RequestAuditLog
+              campaignId={campaignId}
+              requestId={selectedRequest.id}
+              partnerName={selectedRequest.partnerName}
+              onClose={() => setSelectedId(null)}
+            />
+          </div>
         )}
 
         {!selectedRequest && (
@@ -645,6 +681,8 @@ export function RequestsTable({ campaignId, campaignStatus, requests }: Props) {
           campaignId={campaignId}
           request={editingRequest}
           open={!!editingRequest}
+          canDelete={editingRequest ? canDeleteRequest(editingRequest, campaignLocked) : false}
+          onDeleteRequest={(request) => setDeletingRequest(request)}
           onOpenChange={(open) => {
             if (!open) setEditingRequest(null);
           }}

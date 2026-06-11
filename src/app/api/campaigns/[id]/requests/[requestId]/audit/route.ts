@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { canViewMandant } from '@/lib/mandant-permissions';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 
 export async function GET(
@@ -16,11 +17,19 @@ export async function GET(
     // Verify the request belongs to this campaign
     const request = await prisma.confirmationRequest.findUnique({
       where: { id: requestId },
-      select: { id: true, campaignId: true },
+      select: {
+        id: true,
+        campaignId: true,
+        campaign: { select: { engagement: { select: { mandantId: true } } } },
+      },
     });
 
     if (!request || request.campaignId !== id) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    }
+
+    if (!await canViewMandant(user, request.campaign.engagement.mandantId)) {
+      return forbidden();
     }
 
     const events = await prisma.auditEvent.findMany({

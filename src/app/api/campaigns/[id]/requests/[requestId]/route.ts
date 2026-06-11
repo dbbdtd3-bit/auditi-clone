@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { recordAudit } from '@/lib/audit';
+import { canViewMandant } from '@/lib/mandant-permissions';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 
 type RouteParams = {
@@ -55,11 +56,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const request = await prisma.confirmationRequest.findFirst({
       where: { id: requestId, campaignId: id },
-      include: { campaign: true },
+      include: {
+        campaign: {
+          include: { engagement: { select: { mandantId: true } } },
+        },
+      },
     });
 
     if (!request) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    }
+
+    if (!await canViewMandant(user, request.campaign.engagement.mandantId)) {
+      return forbidden();
     }
 
     if (request.campaign.status === 'COMPLETED' || request.campaign.status === 'ARCHIVED') {
@@ -139,11 +148,19 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
 
     const request = await prisma.confirmationRequest.findFirst({
       where: { id: requestId, campaignId: id },
-      include: { campaign: true },
+      include: {
+        campaign: {
+          include: { engagement: { select: { mandantId: true } } },
+        },
+      },
     });
 
     if (!request) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    }
+
+    if (!await canViewMandant(user, request.campaign.engagement.mandantId)) {
+      return forbidden();
     }
 
     if (request.campaign.status === 'COMPLETED' || request.campaign.status === 'ARCHIVED') {
@@ -153,9 +170,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (request.status !== 'DRAFT') {
+    if (!['DRAFT', 'QUEUED', 'SENT', 'BOUNCED'].includes(request.status)) {
       return NextResponse.json(
-        { error: 'Ungültige Anfrage: Nur Entwürfe können gelöscht werden.' },
+        { error: 'Ungültige Anfrage: Beantwortete oder geschlossene Anfragen können nicht gelöscht werden.' },
         { status: 400 }
       );
     }
@@ -175,6 +192,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
         campaignId: id,
         partnerName: request.partnerName,
         partnerEmail: request.partnerEmail,
+        status: request.status,
       },
       prevState: {
         partnerName: request.partnerName,
@@ -182,6 +200,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
         accountNumber: request.accountNumber,
         expectedBalance: request.expectedBalance.toString(),
         currency: request.currency,
+        status: request.status,
       },
     });
 

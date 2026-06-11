@@ -13,7 +13,6 @@ type ResponseDetails = {
   hasDifference: boolean;
   confirmedBalance: string | null;
   differenceNote: string | null;
-  ipAddress: string | null;
   attachment: {
     key: string;
     filename: string;
@@ -210,13 +209,12 @@ export function RequestResponseDetails({
                   <AlertTriangle className="h-4 w-4 text-dataly-warning" />
                   <h3 className="text-sm font-semibold text-dataly-ink">Gemeldete Abweichung</h3>
                 </div>
-                <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                <dl className="mt-3 grid gap-3">
                   <DetailItem
                     label="Differenz zum angefragten Saldo"
                     value={difference === null ? 'Nicht berechenbar' : formatCurrency(difference, request.currency)}
                     mono
                   />
-                  <DetailItem label="IP-Adresse" value={details.ipAddress ?? 'Nicht erfasst'} mono />
                 </dl>
                 <div className="mt-3 rounded-md border border-dataly-line bg-white px-3 py-2">
                   <p className="text-[11px] font-semibold uppercase leading-4 text-dataly-muted">

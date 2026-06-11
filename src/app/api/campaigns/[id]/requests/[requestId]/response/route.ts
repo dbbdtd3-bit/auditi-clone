@@ -75,7 +75,6 @@ export async function GET(_req: Request, { params }: RouteParams) {
       hasDifference: request.response.hasDifference,
       confirmedBalance: request.response.confirmedBalance?.toString() ?? null,
       differenceNote: request.response.differenceNote,
-      ipAddress: request.response.ipAddress,
       attachment,
       comments: request.response.comments.map((comment) => ({
         id: comment.id,

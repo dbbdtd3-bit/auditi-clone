@@ -18,7 +18,7 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
 
     const request = await prisma.confirmationRequest.findFirst({
       where: { id: requestId, campaignId: id },
-      include: { campaign: true },
+      include: { campaign: true, review: true },
     });
 
     if (!request) {
@@ -35,6 +35,13 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     if (request.status !== 'DRAFT' && request.status !== 'BOUNCED') {
       return NextResponse.json(
         { error: 'Ungültige Anfrage: Nur Entwürfe oder unzustellbare Anfragen können versendet werden.' },
+        { status: 400 }
+      );
+    }
+
+    if (request.review?.addressVerificationStatus !== 'VERIFIED') {
+      return NextResponse.json(
+        { error: 'Versand blockiert: EmpfÃ¤nger/Adresse muss vor Versand verifiziert werden.' },
         { status: 400 }
       );
     }

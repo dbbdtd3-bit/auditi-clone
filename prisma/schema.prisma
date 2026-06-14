@@ -168,6 +168,8 @@ model ConfirmationCampaign {
   createdById            String?
   title                  String
   balanceDate            DateTime
+  confirmationMethod     ConfirmationMethod                          @default(STATED)
+  counterpartyType       CounterpartyType                             @default(DEBTOR)
   status                 CampaignStatus                              @default(DRAFT)
   requests               ConfirmationRequest[]
   notificationRecipients ConfirmationCampaignNotificationRecipient[]
@@ -205,8 +207,38 @@ model ConfirmationRequest {
   lastReminderAt  DateTime?
   pdfKey          String?
   response        ConfirmationResponse?
+  review          ConfirmationRequestReview?
   auditLog        AuditEvent[]
   createdAt       DateTime              @default(now())
+}
+
+model ConfirmationRequestReview {
+  id                           String                         @id @default(cuid())
+  request                      ConfirmationRequest            @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestId                    String                         @unique
+  addressVerificationStatus    AddressVerificationStatus      @default(UNVERIFIED)
+  addressVerificationMethod    AddressVerificationMethod?
+  addressVerificationNote      String?
+  addressVerifiedAt            DateTime?
+  addressVerifiedBy            String?
+  reliabilityStatus            ConfirmationReliabilityStatus  @default(NOT_REVIEWED)
+  reliabilityNote              String?
+  reliabilityReviewedAt        DateTime?
+  reliabilityReviewedBy        String?
+  differenceResolutionStatus   DifferenceResolutionStatus     @default(NOT_REQUIRED)
+  differenceResolutionNote     String?
+  differenceResolvedAt         DateTime?
+  differenceResolvedBy         String?
+  alternativeProcedureStatus   AlternativeProcedureStatus     @default(NOT_REQUIRED)
+  alternativeProcedureNote     String?
+  alternativeProcedureAt       DateTime?
+  alternativeProcedureBy       String?
+  conclusionStatus             RequestConclusionStatus        @default(OPEN)
+  conclusionNote               String?
+  concludedAt                  DateTime?
+  concludedBy                  String?
+  createdAt                    DateTime                       @default(now())
+  updatedAt                    DateTime                       @updatedAt
 }
 
 model ConfirmationResponse {
@@ -465,6 +497,16 @@ enum CampaignStatus {
   ARCHIVED
 }
 
+enum ConfirmationMethod {
+  OPEN
+  STATED
+}
+
+enum CounterpartyType {
+  DEBTOR
+  CREDITOR
+}
+
 enum RequestStatus {
   DRAFT
   QUEUED
@@ -472,6 +514,47 @@ enum RequestStatus {
   RESPONDED
   CLOSED
   BOUNCED
+}
+
+enum AddressVerificationStatus {
+  UNVERIFIED
+  VERIFIED
+  NEEDS_REVIEW
+}
+
+enum AddressVerificationMethod {
+  CORRESPONDENCE
+  INTERNET_RESEARCH
+  MASTER_DATA
+  OTHER
+}
+
+enum ConfirmationReliabilityStatus {
+  NOT_REVIEWED
+  RELIABLE
+  DOUBTFUL
+  UNRELIABLE
+}
+
+enum DifferenceResolutionStatus {
+  NOT_REQUIRED
+  OPEN
+  RESOLVED
+  MISSTATEMENT
+  NOT_MISSTATEMENT
+}
+
+enum AlternativeProcedureStatus {
+  NOT_REQUIRED
+  OPEN
+  COMPLETED
+  NOT_POSSIBLE
+}
+
+enum RequestConclusionStatus {
+  OPEN
+  READY
+  CLOSED
 }
 
 enum PbcItemStatus {

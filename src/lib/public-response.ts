@@ -1,5 +1,6 @@
 import { RequestStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import { shouldShowExpectedBalance } from '@/lib/sba';
 
 export type PublicPortalState =
   | 'form'
@@ -15,11 +16,13 @@ export interface PublicRequestData {
   partnerName: string;
   partnerEmail: string;
   accountNumber: string | null;
-  expectedBalance: string;
+  expectedBalance: string | null;
   currency: string;
   balanceDate: string;
   clientName: string;
   kanzleiName: string;
+  confirmationMethod: string;
+  counterpartyType: string;
   tokenExpiresAt: string;
   status: string;
   alreadyResponded: boolean;
@@ -62,11 +65,15 @@ function toPublicRequestData(
     partnerName: request.partnerName,
     partnerEmail: request.partnerEmail,
     accountNumber: request.accountNumber,
-    expectedBalance: request.expectedBalance.toString(),
+    expectedBalance: shouldShowExpectedBalance(request.campaign.confirmationMethod)
+      ? request.expectedBalance.toString()
+      : null,
     currency: request.currency,
     balanceDate: request.campaign.balanceDate.toISOString(),
     clientName,
     kanzleiName: clientName,
+    confirmationMethod: request.campaign.confirmationMethod,
+    counterpartyType: request.campaign.counterpartyType,
     tokenExpiresAt: request.tokenExpiresAt.toISOString(),
     status: request.status,
     alreadyResponded: request.status === RequestStatus.RESPONDED || request.response !== null,

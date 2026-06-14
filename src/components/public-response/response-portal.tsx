@@ -7,7 +7,18 @@ import type {
   PublicPortalState,
   PublicRequestData,
 } from '@/lib/public-response';
-import { AlertCircle, AlertTriangle, CheckCircle, Clock, FileCheck2, Loader2, Paperclip, Send, ShieldCheck, X } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  FileCheck2,
+  Loader2,
+  Paperclip,
+  Send,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +35,11 @@ function resultData(result: PublicPortalResult): PublicRequestData | null {
 
 function resultMessage(result: PublicPortalResult): string {
   return 'message' in result ? result.message : '';
+}
+
+function parseAmountInput(value: string): number | null {
+  const parsed = Number.parseFloat(value.replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function ResponsePortal({
@@ -50,6 +66,8 @@ export function ResponsePortal({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isOpenConfirmation = requestData?.confirmationMethod === 'OPEN';
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -123,7 +141,12 @@ export function ResponsePortal({
       return;
     }
 
-    if (hasDifference && !differenceNote.trim()) {
+    if (isOpenConfirmation && !confirmedBalance.trim()) {
+      setSubmitError('Bitte geben Sie den Saldo laut Ihrer Buchführung an.');
+      return;
+    }
+
+    if (!isOpenConfirmation && hasDifference && !differenceNote.trim()) {
       setSubmitError('Bitte erläutern Sie die Abweichung.');
       return;
     }
@@ -133,21 +156,24 @@ export function ResponsePortal({
       return;
     }
 
+    const parsedBalance = confirmedBalance.trim() ? parseAmountInput(confirmedBalance) : null;
+    if ((isOpenConfirmation || hasDifference) && confirmedBalance.trim() && parsedBalance === null) {
+      setSubmitError('Bitte geben Sie einen gültigen Saldo ein.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const payload: Record<string, unknown> = {
         respondedBy: respondedBy.trim(),
-        hasDifference,
+        hasDifference: isOpenConfirmation ? false : hasDifference,
         differenceNote: differenceNote.trim() || null,
         attachmentKey: uploadedKey ?? null,
         privacyAccepted,
       };
 
-      if (hasDifference && confirmedBalance.trim() !== '') {
-        const parsed = Number.parseFloat(confirmedBalance.replace(/\./g, '').replace(',', '.'));
-        if (!Number.isNaN(parsed)) payload.confirmedBalance = parsed;
-      }
+      if (parsedBalance !== null) payload.confirmedBalance = parsedBalance;
 
       const res = await fetch(`/api/r/${token}`, {
         method: 'POST',
@@ -218,26 +244,31 @@ export function ResponsePortal({
   if (!requestData) return null;
 
   const balanceFormatted = formatBalance(requestData.expectedBalance, requestData.currency);
-  const canSubmit = privacyAccepted && !isSubmitting && !isUploading;
+  const canSubmit =
+    privacyAccepted &&
+    !isSubmitting &&
+    !isUploading &&
+    (!isOpenConfirmation || confirmedBalance.trim().length > 0);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <section className="rounded-lg border border-dataly-line bg-white p-5 shadow-[0_1px_2px_rgba(16,32,51,0.04)]">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-dataly-navy text-white">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase text-dataly-blue">Dataly Antwortportal</p>
-            <h1 className="mt-1 text-[28px] font-semibold leading-9 text-dataly-ink">
-              Saldo bestätigen
-            </h1>
-            <p className="mt-2 text-sm leading-[22px] text-dataly-slate">
-              Bitte prüfen Sie den angefragten Saldo und senden Sie Ihre Bestätigung oder Abweichung
-              direkt an Dataly zurück.
-            </p>
-          </div>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-dataly-navy text-white">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase text-dataly-blue">Dataly Antwortportal</p>
+              <h1 className="mt-1 text-[28px] font-semibold leading-9 text-dataly-ink">
+                {isOpenConfirmation ? 'Saldo mitteilen' : 'Saldo bestätigen'}
+              </h1>
+              <p className="mt-2 text-sm leading-[22px] text-dataly-slate">
+                {isOpenConfirmation
+                  ? 'Bitte teilen Sie den Saldo laut Ihrer Buchführung zum angegebenen Stichtag direkt an Dataly mit.'
+                  : 'Bitte prüfen Sie den angefragten Saldo und senden Sie Ihre Bestätigung oder Abweichung direkt an Dataly zurück.'}
+              </p>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2 rounded-md border border-dataly-line bg-dataly-surface-subtle px-3 py-2 text-xs font-semibold text-dataly-slate">
             <FileCheck2 className="h-4 w-4 text-dataly-blue" />
@@ -265,199 +296,233 @@ export function ResponsePortal({
           </section>
         </div>
 
-      <Card className="overflow-hidden">
-        <div className="border-b border-dataly-line bg-dataly-surface-subtle px-5 py-4">
-          <p className="text-xs font-semibold uppercase text-dataly-slate">Rückmeldung erfassen</p>
-          <h2 className="mt-1 text-base font-semibold leading-6 text-dataly-ink">Ihre Bestätigung</h2>
-        </div>
-        <CardContent className="p-5">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-1.5">
-              <Label htmlFor="respondedBy">
-                Ihr Name / Position <span className="text-dataly-danger">*</span>
-              </Label>
-              <Input
-                id="respondedBy"
-                type="text"
-                placeholder="z. B. Max Mustermann, Leiter Buchhaltung"
-                value={respondedBy}
-                onChange={(e) => setRespondedBy(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-3">
-              <Label>
-                Saldobestätigung <span className="text-dataly-danger">*</span>
-              </Label>
-
-              <label
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
-                  !hasDifference
-                    ? 'border-dataly-blue bg-dataly-info-soft'
-                    : 'border-dataly-line hover:border-dataly-line-strong'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="hasDifference"
-                  className="mt-1 accent-dataly-blue"
-                  checked={!hasDifference}
-                  onChange={() => setHasDifference(false)}
+        <Card className="overflow-hidden">
+          <div className="border-b border-dataly-line bg-dataly-surface-subtle px-5 py-4">
+            <p className="text-xs font-semibold uppercase text-dataly-slate">Rückmeldung erfassen</p>
+            <h2 className="mt-1 text-base font-semibold leading-6 text-dataly-ink">
+              {isOpenConfirmation ? 'Ihr Saldo' : 'Ihre Bestätigung'}
+            </h2>
+          </div>
+          <CardContent className="p-5">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1.5">
+                <Label htmlFor="respondedBy">
+                  Ihr Name / Position <span className="text-dataly-danger">*</span>
+                </Label>
+                <Input
+                  id="respondedBy"
+                  type="text"
+                  placeholder="z. B. Max Mustermann, Leiter Buchhaltung"
+                  value={respondedBy}
+                  onChange={(e) => setRespondedBy(e.target.value)}
+                  required
                 />
-                <span>
-                  <span className="block text-sm font-semibold text-dataly-ink">
-                    Ich bestätige den Saldo von {balanceFormatted}
-                  </span>
-                  <span className="mt-1 block text-xs leading-5 text-dataly-slate">
-                    Der genannte Saldo stimmt mit unserer Buchführung überein.
-                  </span>
-                </span>
-              </label>
-
-              <label
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
-                  hasDifference
-                    ? 'border-dataly-warning bg-dataly-warning-soft'
-                    : 'border-dataly-line hover:border-dataly-line-strong'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="hasDifference"
-                  className="mt-1 accent-dataly-warning"
-                  checked={hasDifference}
-                  onChange={() => setHasDifference(true)}
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-dataly-ink">
-                    Ich melde eine Abweichung
-                  </span>
-                  <span className="mt-1 block text-xs leading-5 text-dataly-slate">
-                    Der Saldo laut unserer Buchführung weicht vom angefragten Betrag ab.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            {hasDifference ? (
-              <div className="space-y-4 rounded-lg border border-dataly-warning/30 bg-dataly-warning-soft p-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="confirmedBalance">
-                    Saldo laut unserer Buchführung ({requestData.currency})
-                  </Label>
-                  <Input
-                    id="confirmedBalance"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="z. B. 12.345,67"
-                    value={confirmedBalance}
-                    onChange={(e) => setConfirmedBalance(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="differenceNote">
-                    Erläuterung der Abweichung <span className="text-dataly-danger">*</span>
-                  </Label>
-                  <Textarea
-                    id="differenceNote"
-                    placeholder="Bitte erläutern Sie die Ursache der Abweichung."
-                    rows={4}
-                    value={differenceNote}
-                    onChange={(e) => setDifferenceNote(e.target.value)}
-                  />
-                </div>
               </div>
-            ) : null}
 
-            <div className="space-y-2">
-              <Label>Beleg hochladen (optional)</Label>
+              {isOpenConfirmation ? (
+                <div className="space-y-4 rounded-lg border border-dataly-line bg-dataly-surface-subtle p-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="confirmedBalance">
+                      Saldo laut Ihrer Buchführung ({requestData.currency}){' '}
+                      <span className="text-dataly-danger">*</span>
+                    </Label>
+                    <Input
+                      id="confirmedBalance"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="z. B. 12.345,67"
+                      value={confirmedBalance}
+                      onChange={(e) => setConfirmedBalance(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="differenceNote">Erläuterung oder Hinweise (optional)</Label>
+                    <Textarea
+                      id="differenceNote"
+                      placeholder="Optional: Geben Sie Hinweise zur Zusammensetzung oder zu offenen Posten an."
+                      rows={4}
+                      value={differenceNote}
+                      onChange={(e) => setDifferenceNote(e.target.value)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <Label>
+                      Saldobestätigung <span className="text-dataly-danger">*</span>
+                    </Label>
 
-              {uploadFile ? (
-                <div className="flex items-center gap-3 rounded-lg border border-dataly-line bg-dataly-surface-subtle px-3 py-2">
-                  {isUploading ? (
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-dataly-muted" />
-                  ) : (
-                    <Paperclip className="h-4 w-4 shrink-0 text-dataly-muted" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-sm text-dataly-ink">{uploadFile.name}</span>
-                  {isUploading ? (
-                    <span className="text-xs text-dataly-slate">Wird hochgeladen...</span>
-                  ) : uploadedKey ? (
-                    <span className="text-xs font-semibold text-dataly-success">Hochgeladen</span>
-                  ) : null}
-                  {!isUploading ? (
-                    <button
-                      type="button"
-                      onClick={removeFile}
-                      className="shrink-0 rounded-sm text-dataly-muted hover:text-dataly-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dataly-blue"
-                      aria-label="Datei entfernen"
+                    <label
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
+                        !hasDifference
+                          ? 'border-dataly-blue bg-dataly-info-soft'
+                          : 'border-dataly-line hover:border-dataly-line-strong'
+                      }`}
                     >
-                      <X className="h-4 w-4" />
-                    </button>
+                      <input
+                        type="radio"
+                        name="hasDifference"
+                        className="mt-1 accent-dataly-blue"
+                        checked={!hasDifference}
+                        onChange={() => setHasDifference(false)}
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-dataly-ink">
+                          Ich bestätige den Saldo von {balanceFormatted}
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-dataly-slate">
+                          Der genannte Saldo stimmt mit unserer Buchführung überein.
+                        </span>
+                      </span>
+                    </label>
+
+                    <label
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
+                        hasDifference
+                          ? 'border-dataly-warning bg-dataly-warning-soft'
+                          : 'border-dataly-line hover:border-dataly-line-strong'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="hasDifference"
+                        className="mt-1 accent-dataly-warning"
+                        checked={hasDifference}
+                        onChange={() => setHasDifference(true)}
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-dataly-ink">
+                          Ich melde eine Abweichung
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-dataly-slate">
+                          Der Saldo laut unserer Buchführung weicht vom angefragten Betrag ab.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+
+                  {hasDifference ? (
+                    <div className="space-y-4 rounded-lg border border-dataly-warning/30 bg-dataly-warning-soft p-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="confirmedBalance">
+                          Saldo laut unserer Buchführung ({requestData.currency})
+                        </Label>
+                        <Input
+                          id="confirmedBalance"
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="z. B. 12.345,67"
+                          value={confirmedBalance}
+                          onChange={(e) => setConfirmedBalance(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="differenceNote">
+                          Erläuterung der Abweichung <span className="text-dataly-danger">*</span>
+                        </Label>
+                        <Textarea
+                          id="differenceNote"
+                          placeholder="Bitte erläutern Sie die Ursache der Abweichung."
+                          rows={4}
+                          value={differenceNote}
+                          onChange={(e) => setDifferenceNote(e.target.value)}
+                        />
+                      </div>
+                    </div>
                   ) : null}
-                </div>
-              ) : (
-                <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-dataly-line-strong px-4 py-3 transition-colors hover:bg-dataly-surface-subtle">
-                  <Paperclip className="h-4 w-4 text-dataly-muted" />
-                  <span className="text-sm text-dataly-slate">Datei auswählen</span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="sr-only"
-                    accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.docx,.doc,.csv"
-                    onChange={handleFileChange}
-                  />
-                </label>
+                </>
               )}
 
-              {uploadError ? <p className="text-xs text-dataly-danger">{uploadError}</p> : null}
-              <p className="text-xs leading-5 text-dataly-muted">
-                Erlaubte Formate: PDF, JPG, PNG, XLSX, XLS, DOCX, DOC, CSV. Maximal 20 MB.
-              </p>
-            </div>
+              <div className="space-y-2">
+                <Label>Beleg hochladen (optional)</Label>
 
-            <div className="flex items-start gap-3 rounded-lg border border-dataly-line bg-dataly-surface-subtle p-4">
-              <input
-                id="privacy"
-                type="checkbox"
-                className="mt-1 h-4 w-4 shrink-0 accent-dataly-blue"
-                checked={privacyAccepted}
-                onChange={(e) => setPrivacyAccepted(e.target.checked)}
-              />
-              <label htmlFor="privacy" className="cursor-pointer text-sm leading-[22px] text-dataly-slate">
-                Ich stimme zu, dass meine Angaben zur Prüfungsdokumentation gespeichert und im Rahmen
-                der gesetzlichen Aufbewahrungspflichten verwendet werden.
-              </label>
-            </div>
+                {uploadFile ? (
+                  <div className="flex items-center gap-3 rounded-lg border border-dataly-line bg-dataly-surface-subtle px-3 py-2">
+                    {isUploading ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-dataly-muted" />
+                    ) : (
+                      <Paperclip className="h-4 w-4 shrink-0 text-dataly-muted" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-sm text-dataly-ink">{uploadFile.name}</span>
+                    {isUploading ? (
+                      <span className="text-xs text-dataly-slate">Wird hochgeladen...</span>
+                    ) : uploadedKey ? (
+                      <span className="text-xs font-semibold text-dataly-success">Hochgeladen</span>
+                    ) : null}
+                    {!isUploading ? (
+                      <button
+                        type="button"
+                        onClick={removeFile}
+                        className="shrink-0 rounded-sm text-dataly-muted hover:text-dataly-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dataly-blue"
+                        aria-label="Datei entfernen"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-dataly-line-strong px-4 py-3 transition-colors hover:bg-dataly-surface-subtle">
+                    <Paperclip className="h-4 w-4 text-dataly-muted" />
+                    <span className="text-sm text-dataly-slate">Datei auswählen</span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="sr-only"
+                      accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.docx,.doc,.csv"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+                )}
 
-            {submitError ? (
-              <div className="flex items-start gap-2 rounded-lg border border-dataly-danger/30 bg-dataly-danger-soft px-4 py-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-dataly-danger" />
-                <p className="text-sm text-dataly-danger">{submitError}</p>
+                {uploadError ? <p className="text-xs text-dataly-danger">{uploadError}</p> : null}
+                <p className="text-xs leading-5 text-dataly-muted">
+                  Erlaubte Formate: PDF, JPG, PNG, XLSX, XLS, DOCX, DOC, CSV. Maximal 20 MB.
+                </p>
               </div>
-            ) : null}
 
-            <Button type="submit" className="w-full" disabled={!canSubmit}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Wird übermittelt...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Antwort absenden
-                </>
-              )}
-            </Button>
+              <div className="flex items-start gap-3 rounded-lg border border-dataly-line bg-dataly-surface-subtle p-4">
+                <input
+                  id="privacy"
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 shrink-0 accent-dataly-blue"
+                  checked={privacyAccepted}
+                  onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                />
+                <label htmlFor="privacy" className="cursor-pointer text-sm leading-[22px] text-dataly-slate">
+                  Ich stimme zu, dass meine Angaben zur Prüfungsdokumentation gespeichert und im Rahmen
+                  der gesetzlichen Aufbewahrungspflichten verwendet werden.
+                </label>
+              </div>
 
-            <p className="text-center text-xs leading-5 text-dataly-muted">
-              Ihre Angaben werden verschlüsselt übertragen und sicher gespeichert.
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+              {submitError ? (
+                <div className="flex items-start gap-2 rounded-lg border border-dataly-danger/30 bg-dataly-danger-soft px-4 py-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-dataly-danger" />
+                  <p className="text-sm text-dataly-danger">{submitError}</p>
+                </div>
+              ) : null}
+
+              <Button type="submit" className="w-full" disabled={!canSubmit}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Wird übermittelt...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Antwort absenden
+                  </>
+                )}
+              </Button>
+
+              <p className="text-center text-xs leading-5 text-dataly-muted">
+                Ihre Angaben werden verschlüsselt übertragen und sicher gespeichert.
+              </p>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

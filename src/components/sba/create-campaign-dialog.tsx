@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { NativeSelect as Select } from '@/components/ui/select';
 import { Plus } from 'lucide-react';
 
 interface Props {
@@ -25,9 +26,14 @@ export function CreateCampaignDialog({ engagementId }: Props) {
   const [error, setError] = React.useState<string | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
-  const [form, setForm] = React.useState({ title: '', balanceDate: today });
+  const [form, setForm] = React.useState({
+    title: '',
+    balanceDate: today,
+    confirmationMethod: 'STATED',
+    counterpartyType: 'DEBTOR',
+  });
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
@@ -49,6 +55,8 @@ export function CreateCampaignDialog({ engagementId }: Props) {
           engagementId,
           title: form.title.trim(),
           balanceDate: form.balanceDate,
+          confirmationMethod: form.confirmationMethod,
+          counterpartyType: form.counterpartyType,
         }),
       });
 
@@ -60,7 +68,12 @@ export function CreateCampaignDialog({ engagementId }: Props) {
       }
 
       setOpen(false);
-      setForm({ title: '', balanceDate: today });
+      setForm({
+        title: '',
+        balanceDate: today,
+        confirmationMethod: 'STATED',
+        counterpartyType: 'DEBTOR',
+      });
       router.refresh();
     } catch {
       setError('Netzwerkfehler. Bitte versuchen Sie es erneut.');
@@ -71,10 +84,7 @@ export function CreateCampaignDialog({ engagementId }: Props) {
 
   return (
     <>
-      <Button
-        className="bg-blue-700 hover:bg-blue-800"
-        onClick={() => setOpen(true)}
-      >
+      <Button className="bg-dataly-blue hover:bg-dataly-navy" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" />
         Kampagne erstellen
       </Button>
@@ -91,7 +101,7 @@ export function CreateCampaignDialog({ engagementId }: Props) {
               <Input
                 id="camp-title"
                 name="title"
-                placeholder="z.B. Debitoren Q4 2024"
+                placeholder="z. B. Debitoren Q4 2024"
                 value={form.title}
                 onChange={handleChange}
                 disabled={loading}
@@ -112,26 +122,54 @@ export function CreateCampaignDialog({ engagementId }: Props) {
               />
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="camp-confirmationMethod">Methode *</Label>
+                <Select
+                  id="camp-confirmationMethod"
+                  name="confirmationMethod"
+                  value={form.confirmationMethod}
+                  onChange={handleChange}
+                  disabled={loading}
+                  required
+                >
+                  <option value="STATED">Geschlossen (Saldo genannt)</option>
+                  <option value="OPEN">Offen</option>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="camp-counterpartyType">Richtung *</Label>
+                <Select
+                  id="camp-counterpartyType"
+                  name="counterpartyType"
+                  value={form.counterpartyType}
+                  onChange={handleChange}
+                  disabled={loading}
+                  required
+                >
+                  <option value="DEBTOR">Debitoren</option>
+                  <option value="CREDITOR">Kreditoren</option>
+                </Select>
+              </div>
+            </div>
+
+            <p className="rounded-md border border-dataly-line bg-dataly-surface-subtle px-3 py-2 text-xs leading-5 text-dataly-slate">
+              Bei offenen Bestätigungen wird der interne Buchsaldo nicht an den Empfänger
+              übermittelt. Bei geschlossenen Bestätigungen wird der Saldo zur Bestätigung angezeigt.
+            </p>
+
             {error && (
-              <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+              <p className="rounded-md border border-dataly-danger/30 bg-dataly-danger-soft px-3 py-2 text-sm text-dataly-danger">
                 {error}
               </p>
             )}
 
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-                disabled={loading}
-              >
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
                 Abbrechen
               </Button>
-              <Button
-                type="submit"
-                className="bg-blue-700 hover:bg-blue-800"
-                disabled={loading}
-              >
+              <Button type="submit" disabled={loading}>
                 {loading ? 'Wird erstellt...' : 'Erstellen'}
               </Button>
             </DialogFooter>

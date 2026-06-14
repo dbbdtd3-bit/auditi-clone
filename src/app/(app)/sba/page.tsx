@@ -33,6 +33,8 @@ export default async function SbaPage() {
     id: campaign.id,
     title: campaign.title,
     status: campaign.status,
+    confirmationMethod: campaign.confirmationMethod,
+    counterpartyType: campaign.counterpartyType,
     balanceDate: campaign.balanceDate.toISOString(),
     createdAt: campaign.createdAt.toISOString(),
     engagementTitle: campaign.engagement.title,

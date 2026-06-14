@@ -23,10 +23,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const draftRequests = await prisma.confirmationRequest.findMany({
       where: { campaignId: id, status: 'DRAFT' },
+      include: { review: true },
     });
 
     if (draftRequests.length === 0) {
       return NextResponse.json({ queued: 0 });
+    }
+
+    const unverified = draftRequests.filter(
+      (request) => request.review?.addressVerificationStatus !== 'VERIFIED'
+    );
+    if (unverified.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Versand blockiert: Alle EmpfÃ¤nger/Adressen mÃ¼ssen vor Versand verifiziert werden.',
+          blockers: unverified.map((request) => request.partnerName),
+        },
+        { status: 400 }
+      );
     }
 
     // Activate campaign if still DRAFT

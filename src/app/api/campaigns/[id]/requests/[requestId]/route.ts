@@ -57,6 +57,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const request = await prisma.confirmationRequest.findFirst({
       where: { id: requestId, campaignId: id },
       include: {
+        review: true,
         campaign: {
           include: { engagement: { select: { mandantId: true } } },
         },
@@ -92,10 +93,40 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
-    const updated = await prisma.confirmationRequest.update({
-      where: { id: requestId },
-      data: parsed.data,
-      include: { response: true },
+    const emailChanged = request.partnerEmail.toLowerCase() !== parsed.data.partnerEmail.toLowerCase();
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.confirmationRequest.update({
+        where: { id: requestId },
+        data: parsed.data,
+      });
+
+      if (emailChanged || !request.review) {
+        await tx.confirmationRequestReview.upsert({
+          where: { requestId },
+          update: {
+            addressVerificationStatus: 'UNVERIFIED',
+            addressVerificationMethod: null,
+            addressVerificationNote: emailChanged
+              ? 'E-Mail-Adresse wurde geändert; Verifikation erneut erforderlich.'
+              : null,
+            addressVerifiedAt: null,
+            addressVerifiedBy: null,
+          },
+          create: {
+            requestId,
+            addressVerificationStatus: 'UNVERIFIED',
+            addressVerificationNote: emailChanged
+              ? 'E-Mail-Adresse wurde geändert; Verifikation erneut erforderlich.'
+              : null,
+          },
+        });
+      }
+
+      return tx.confirmationRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        include: { response: true, review: true },
+      });
     });
 
     await prisma.auditEvent.create({

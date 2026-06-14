@@ -150,19 +150,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Bulk create all valid rows
     const tokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    const createData = toCreate.map((row) => ({
-      campaignId: id,
-      partnerName: row.partnerName,
-      partnerEmail: row.partnerEmail,
-      accountNumber: row.accountNumber || null,
-      expectedBalance: row.expectedBalance,
-      currency: row.currency,
-      status: 'DRAFT' as const,
-      publicToken: randomBytes(32).toString('hex'),
-      tokenExpiresAt,
-    }));
-
-    await prisma.confirmationRequest.createMany({ data: createData });
+    await prisma.$transaction(
+      toCreate.map((row) =>
+        prisma.confirmationRequest.create({
+          data: {
+            campaignId: id,
+            partnerName: row.partnerName,
+            partnerEmail: row.partnerEmail,
+            accountNumber: row.accountNumber || null,
+            expectedBalance: row.expectedBalance,
+            currency: row.currency,
+            status: 'DRAFT',
+            publicToken: randomBytes(32).toString('hex'),
+            tokenExpiresAt,
+            review: {
+              create: {
+                addressVerificationStatus: 'UNVERIFIED',
+              },
+            },
+          },
+        })
+      )
+    );
 
     return NextResponse.json({ created: toCreate.length, errors }, { status: 201 });
   } catch (error) {

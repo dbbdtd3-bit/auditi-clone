@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { visibleCampaignWhere, visibleEngagementWhere } from '@/lib/mandant-access';
+import { isConfirmationMethod, isCounterpartyType } from '@/lib/sba';
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,10 +38,21 @@ export async function POST(req: NextRequest) {
     if (!isWpUser(user)) return forbidden();
 
     const body = await req.json();
-    const { engagementId, title, balanceDate } = body;
+    const { engagementId, title, balanceDate, confirmationMethod, counterpartyType } = body;
 
     if (!engagementId || !title || !balanceDate) {
       return NextResponse.json({ error: 'Ungültige Anfrage: engagementId, title und balanceDate sind Pflichtfelder' }, { status: 400 });
+    }
+
+    const method = confirmationMethod || 'STATED';
+    const type = counterpartyType || 'DEBTOR';
+
+    if (!isConfirmationMethod(method)) {
+      return NextResponse.json({ error: 'UngÃ¼ltige Anfrage: BestÃ¤tigungsmethode ist ungÃ¼ltig.' }, { status: 400 });
+    }
+
+    if (!isCounterpartyType(type)) {
+      return NextResponse.json({ error: 'UngÃ¼ltige Anfrage: Richtung ist ungÃ¼ltig.' }, { status: 400 });
     }
 
     const engagement = await prisma.engagement.findFirst({
@@ -56,6 +68,8 @@ export async function POST(req: NextRequest) {
         createdById: user.id,
         title,
         balanceDate: new Date(balanceDate),
+        confirmationMethod: method,
+        counterpartyType: type,
         status: 'DRAFT',
         notificationRecipients: {
           create: { userId: user.id },

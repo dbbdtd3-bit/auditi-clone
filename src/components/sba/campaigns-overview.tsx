@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { confirmationMethodLabels, counterpartyTypeLabels } from '@/lib/sba';
 import {
   Select,
   SelectContent,
@@ -36,6 +37,8 @@ export type SbaCampaignListItem = {
   id: string;
   title: string;
   status: string;
+  confirmationMethod: string;
+  counterpartyType: string;
   balanceDate: string;
   createdAt: string;
   engagementTitle: string;
@@ -109,7 +112,7 @@ export function SbaCampaignsOverview({ campaigns }: { campaigns: SbaCampaignList
     const normalizedQuery = query.trim().toLocaleLowerCase('de-DE');
     const filtered = normalizedQuery
       ? campaigns.filter((campaign) =>
-          [campaign.title, campaign.mandantName].some((value) =>
+          [campaign.title, campaign.mandantName, campaign.engagementTitle].some((value) =>
             value.toLocaleLowerCase('de-DE').includes(normalizedQuery)
           )
         )
@@ -303,6 +306,12 @@ function CampaignRow({ campaign }: { campaign: SbaCampaignListItem }) {
   };
   const rate = responseRate(campaign.requests);
   const sent = sentCount(campaign.requests);
+  const methodLabel =
+    confirmationMethodLabels[campaign.confirmationMethod as keyof typeof confirmationMethodLabels] ??
+    campaign.confirmationMethod;
+  const counterpartyLabel =
+    counterpartyTypeLabels[campaign.counterpartyType as keyof typeof counterpartyTypeLabels] ??
+    campaign.counterpartyType;
 
   return (
     <Link href={`/campaigns/${campaign.id}`}>
@@ -355,6 +364,12 @@ function CampaignRow({ campaign }: { campaign: SbaCampaignListItem }) {
             <div>
               <p className="text-sm font-semibold tabular-nums text-dataly-ink">{rate} %</p>
               <p className="text-[10px] text-dataly-muted">Rücklauf</p>
+            </div>
+            <div className="hidden flex-col items-end gap-1 xl:flex">
+              <Badge variant="secondary">{counterpartyLabel}</Badge>
+              <Badge variant={campaign.confirmationMethod === 'OPEN' ? 'info' : 'outline'}>
+                {methodLabel}
+              </Badge>
             </div>
             <Badge variant={status.variant}>{status.label}</Badge>
           </div>

@@ -16,6 +16,7 @@ import {
 import Link from 'next/link';
 import { CreateCampaignDialog } from '@/components/sba/create-campaign-dialog';
 import { canViewMandant } from '@/lib/mandant-permissions';
+import { confirmationMethodLabels, counterpartyTypeLabels } from '@/lib/sba';
 
 type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 
@@ -225,6 +226,12 @@ export default async function EngagementDetailPage({
                     label: campaign.status,
                     variant: 'outline' as const,
                   };
+                const methodLabel =
+                  confirmationMethodLabels[campaign.confirmationMethod as keyof typeof confirmationMethodLabels] ??
+                  campaign.confirmationMethod;
+                const counterpartyLabel =
+                  counterpartyTypeLabels[campaign.counterpartyType as keyof typeof counterpartyTypeLabels] ??
+                  campaign.counterpartyType;
                 return (
                   <Card key={campaign.id}>
                     <CardContent className="flex items-center gap-4 py-3.5 px-4">
@@ -251,6 +258,10 @@ export default async function EngagementDetailPage({
                         </div>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
+                        <Badge variant="secondary">{counterpartyLabel}</Badge>
+                        <Badge variant={campaign.confirmationMethod === 'OPEN' ? 'info' : 'outline'}>
+                          {methodLabel}
+                        </Badge>
                         <Badge variant={campStatus.variant}>{campStatus.label}</Badge>
                         <Button asChild variant="outline" size="sm">
                           <Link href={`/campaigns/${campaign.id}`}>

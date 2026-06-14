@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getPublicPortalResult, requireRespondablePublicToken } from '@/lib/public-response';
 import { RequestStatus } from '@prisma/client';
 import { enqueueSbaResponseNotification } from '@/lib/queue';
+import { amountsDiffer, parseGermanDecimal } from '@/lib/sba';
 
 interface RouteParams {
   params: Promise<{ token: string }>;
@@ -56,6 +57,29 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (!access.ok) return NextResponse.json(access.body, { status: access.status });
 
     const { request } = access;
+    const isOpenConfirmation = request.campaign.confirmationMethod === 'OPEN';
+    const parsedConfirmedBalance =
+      confirmedBalance !== undefined && confirmedBalance !== null && confirmedBalance !== ''
+        ? parseGermanDecimal(confirmedBalance)
+        : null;
+
+    if (isOpenConfirmation && (parsedConfirmedBalance === null || !Number.isFinite(parsedConfirmedBalance))) {
+      return NextResponse.json(
+        { error: 'Bitte geben Sie den Saldo laut Ihrer BuchfÃ¼hrung an.' },
+        { status: 400 }
+      );
+    }
+
+    const finalHasDifference = isOpenConfirmation
+      ? amountsDiffer(request.expectedBalance, parsedConfirmedBalance)
+      : Boolean(hasDifference);
+
+    if (!isOpenConfirmation && finalHasDifference && (!differenceNote || typeof differenceNote !== 'string' || !differenceNote.trim())) {
+      return NextResponse.json(
+        { error: 'Bitte erlÃ¤utern Sie die Abweichung.' },
+        { status: 400 }
+      );
+    }
 
     // IP-Adresse
     const forwarded = req.headers.get('x-forwarded-for');
@@ -68,10 +92,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         data: {
           requestId: request.id,
           confirmedBalance:
-            confirmedBalance !== undefined && confirmedBalance !== null
-              ? confirmedBalance
+            parsedConfirmedBalance !== null && Number.isFinite(parsedConfirmedBalance)
+              ? parsedConfirmedBalance
               : null,
-          hasDifference: Boolean(hasDifference),
+          hasDifference: finalHasDifference,
           differenceNote: differenceNote ?? null,
           attachmentKey: attachmentKey ?? null,
           respondedBy: respondedBy.trim(),
@@ -93,8 +117,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           actor: respondedBy.trim(),
           meta: {
             respondedBy: respondedBy.trim(),
-            hasDifference: Boolean(hasDifference),
+            hasDifference: finalHasDifference,
+            confirmationMethod: request.campaign.confirmationMethod,
           },
+        },
+      }),
+      prisma.confirmationRequestReview.upsert({
+        where: { requestId: request.id },
+        update: {
+          reliabilityStatus: 'NOT_REVIEWED',
+          differenceResolutionStatus: finalHasDifference ? 'OPEN' : 'NOT_REQUIRED',
+          alternativeProcedureStatus: 'NOT_REQUIRED',
+          conclusionStatus: 'OPEN',
+        },
+        create: {
+          requestId: request.id,
+          reliabilityStatus: 'NOT_REVIEWED',
+          differenceResolutionStatus: finalHasDifference ? 'OPEN' : 'NOT_REQUIRED',
+          alternativeProcedureStatus: 'NOT_REQUIRED',
+          conclusionStatus: 'OPEN',
         },
       }),
     ]);

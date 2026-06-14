@@ -226,6 +226,8 @@ new Worker(
       balanceDate: request.campaign.balanceDate.toLocaleDateString('de-DE'),
       portalUrl,
       expiresAt: request.tokenExpiresAt.toLocaleDateString('de-DE'),
+      confirmationMethod: request.campaign.confirmationMethod,
+      counterpartyType: request.campaign.counterpartyType,
     };
 
     if (job.name === 'send-confirmation') {

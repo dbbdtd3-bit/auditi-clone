@@ -17,6 +17,8 @@ function escapeCsvField(value: string | null | undefined): string {
 }
 
 const CSV_HEADERS = [
+  'confirmationMethod',
+  'counterpartyType',
   'partnerName',
   'partnerEmail',
   'accountNumber',
@@ -28,6 +30,12 @@ const CSV_HEADERS = [
   'confirmedBalance',
   'hasDifference',
   'differenceNote',
+  'addressVerificationStatus',
+  'reliabilityStatus',
+  'differenceResolutionStatus',
+  'alternativeProcedureStatus',
+  'conclusionStatus',
+  'conclusionNote',
 ];
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -45,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const requests = await prisma.confirmationRequest.findMany({
       where: { campaignId: id },
-      include: { response: true },
+      include: { response: true, review: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -53,6 +61,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     for (const r of requests) {
       const row = [
+        escapeCsvField(campaign.confirmationMethod),
+        escapeCsvField(campaign.counterpartyType),
         escapeCsvField(r.partnerName),
         escapeCsvField(r.partnerEmail),
         escapeCsvField(r.accountNumber),
@@ -64,6 +74,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         escapeCsvField(r.response?.confirmedBalance?.toString() ?? ''),
         escapeCsvField(r.response ? String(r.response.hasDifference) : ''),
         escapeCsvField(r.response?.differenceNote),
+        escapeCsvField(r.review?.addressVerificationStatus),
+        escapeCsvField(r.review?.reliabilityStatus),
+        escapeCsvField(r.review?.differenceResolutionStatus),
+        escapeCsvField(r.review?.alternativeProcedureStatus),
+        escapeCsvField(r.review?.conclusionStatus),
+        escapeCsvField(r.review?.conclusionNote),
       ];
       lines.push(row.join(','));
     }

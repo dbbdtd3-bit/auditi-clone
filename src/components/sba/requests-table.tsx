@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect as Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Tooltip,
   TooltipContent,
@@ -25,9 +26,30 @@ import {
 import { Bell, Edit2, Mail, Send, Trash2 } from 'lucide-react';
 import { RequestAuditLog } from './request-audit-log';
 import { RequestResponseDetails } from './request-response-details';
+import {
+  addressVerificationLabels,
+  addressVerificationMethodLabels,
+  alternativeProcedureLabels,
+  differenceResolutionLabels,
+  reliabilityLabels,
+} from '@/lib/sba';
 
 type RequestStatus = 'DRAFT' | 'QUEUED' | 'SENT' | 'RESPONDED' | 'CLOSED' | 'BOUNCED';
 type RequestAction = 'send' | 'remind';
+
+interface RequestReview {
+  addressVerificationStatus: string;
+  addressVerificationMethod: string | null;
+  addressVerificationNote: string | null;
+  reliabilityStatus: string;
+  reliabilityNote: string | null;
+  differenceResolutionStatus: string;
+  differenceResolutionNote: string | null;
+  alternativeProcedureStatus: string;
+  alternativeProcedureNote: string | null;
+  conclusionStatus: string;
+  conclusionNote: string | null;
+}
 
 interface RequestRow {
   id: string;
@@ -41,11 +63,14 @@ interface RequestRow {
   respondedAt: Date | string | null;
   reminderCount: number;
   response: { hasDifference?: boolean | null } | null;
+  review: RequestReview | null;
 }
 
 interface Props {
   campaignId: string;
   campaignStatus: string;
+  confirmationMethod: string;
+  counterpartyType: string;
   requests: RequestRow[];
 }
 
@@ -110,7 +135,11 @@ function canDeleteRequest(req: RequestRow, campaignLocked: boolean) {
 }
 
 function canSendRequest(req: RequestRow, campaignLocked: boolean) {
-  return !campaignLocked && (req.status === 'DRAFT' || req.status === 'BOUNCED');
+  return (
+    !campaignLocked &&
+    (req.status === 'DRAFT' || req.status === 'BOUNCED') &&
+    req.review?.addressVerificationStatus === 'VERIFIED'
+  );
 }
 
 function canRemindRequest(req: RequestRow, campaignLocked: boolean) {
@@ -395,7 +424,266 @@ function DeleteRequestDialog({
   );
 }
 
-export function RequestsTable({ campaignId, campaignStatus, requests }: Props) {
+function ReviewPanel({
+  campaignId,
+  request,
+  campaignLocked,
+}: {
+  campaignId: string;
+  request: RequestRow;
+  campaignLocked: boolean;
+}) {
+  const router = useRouter();
+  const [loading, setLoading] = React.useState(false);
+  const [message, setMessage] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [form, setForm] = React.useState({
+    addressVerificationStatus: request.review?.addressVerificationStatus ?? 'UNVERIFIED',
+    addressVerificationMethod: request.review?.addressVerificationMethod ?? '',
+    addressVerificationNote: request.review?.addressVerificationNote ?? '',
+    reliabilityStatus: request.review?.reliabilityStatus ?? 'NOT_REVIEWED',
+    reliabilityNote: request.review?.reliabilityNote ?? '',
+    differenceResolutionStatus: request.review?.differenceResolutionStatus ?? (request.response?.hasDifference ? 'OPEN' : 'NOT_REQUIRED'),
+    differenceResolutionNote: request.review?.differenceResolutionNote ?? '',
+    alternativeProcedureStatus: request.review?.alternativeProcedureStatus ?? (['SENT', 'BOUNCED'].includes(request.status) ? 'OPEN' : 'NOT_REQUIRED'),
+    alternativeProcedureNote: request.review?.alternativeProcedureNote ?? '',
+    conclusionStatus: request.review?.conclusionStatus ?? 'OPEN',
+    conclusionNote: request.review?.conclusionNote ?? '',
+  });
+
+  React.useEffect(() => {
+    setForm({
+      addressVerificationStatus: request.review?.addressVerificationStatus ?? 'UNVERIFIED',
+      addressVerificationMethod: request.review?.addressVerificationMethod ?? '',
+      addressVerificationNote: request.review?.addressVerificationNote ?? '',
+      reliabilityStatus: request.review?.reliabilityStatus ?? 'NOT_REVIEWED',
+      reliabilityNote: request.review?.reliabilityNote ?? '',
+      differenceResolutionStatus: request.review?.differenceResolutionStatus ?? (request.response?.hasDifference ? 'OPEN' : 'NOT_REQUIRED'),
+      differenceResolutionNote: request.review?.differenceResolutionNote ?? '',
+      alternativeProcedureStatus: request.review?.alternativeProcedureStatus ?? (['SENT', 'BOUNCED'].includes(request.status) ? 'OPEN' : 'NOT_REQUIRED'),
+      alternativeProcedureNote: request.review?.alternativeProcedureNote ?? '',
+      conclusionStatus: request.review?.conclusionStatus ?? 'OPEN',
+      conclusionNote: request.review?.conclusionNote ?? '',
+    });
+    setMessage(null);
+    setError(null);
+  }, [request]);
+
+  function handleChange(
+    e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement | HTMLInputElement>
+  ) {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/requests/${request.id}/review`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          addressVerificationMethod: form.addressVerificationMethod || null,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Review konnte nicht gespeichert werden.');
+        return;
+      }
+
+      setMessage('Review gespeichert.');
+      router.refresh();
+    } catch {
+      setError('Netzwerkfehler. Bitte versuchen Sie es erneut.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card className="border-dataly-line-strong">
+      <div className="border-b border-dataly-line bg-dataly-surface-subtle px-4 py-3">
+        <h3 className="text-sm font-semibold text-dataly-ink">ISA-505-Prüfung: {request.partnerName}</h3>
+        <p className="mt-1 text-xs leading-5 text-dataly-slate">
+          Dokumentieren Sie Empfängerverifikation, Verlässlichkeit, Differenzen und alternative Prüfungshandlungen.
+        </p>
+      </div>
+      <form onSubmit={handleSave} className="space-y-4 p-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2 rounded-md border border-dataly-line p-3">
+            <h4 className="text-xs font-semibold uppercase text-dataly-muted">Empfänger / Adresse</h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="addressVerificationStatus">Status</Label>
+                <Select
+                  id="addressVerificationStatus"
+                  name="addressVerificationStatus"
+                  value={form.addressVerificationStatus}
+                  onChange={handleChange}
+                  disabled={campaignLocked || loading}
+                >
+                  <option value="UNVERIFIED">{addressVerificationLabels.UNVERIFIED}</option>
+                  <option value="VERIFIED">{addressVerificationLabels.VERIFIED}</option>
+                  <option value="NEEDS_REVIEW">{addressVerificationLabels.NEEDS_REVIEW}</option>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="addressVerificationMethod">Methode</Label>
+                <Select
+                  id="addressVerificationMethod"
+                  name="addressVerificationMethod"
+                  value={form.addressVerificationMethod}
+                  onChange={handleChange}
+                  disabled={campaignLocked || loading}
+                >
+                  <option value="">Nicht angegeben</option>
+                  <option value="CORRESPONDENCE">{addressVerificationMethodLabels.CORRESPONDENCE}</option>
+                  <option value="INTERNET_RESEARCH">{addressVerificationMethodLabels.INTERNET_RESEARCH}</option>
+                  <option value="MASTER_DATA">{addressVerificationMethodLabels.MASTER_DATA}</option>
+                  <option value="OTHER">{addressVerificationMethodLabels.OTHER}</option>
+                </Select>
+              </div>
+            </div>
+            <Textarea
+              name="addressVerificationNote"
+              value={form.addressVerificationNote}
+              onChange={handleChange}
+              rows={3}
+              disabled={campaignLocked || loading}
+              placeholder="Notiz zur Verifikation, z. B. Abgleich mit Rechnung oder Website."
+            />
+          </div>
+
+          <div className="space-y-2 rounded-md border border-dataly-line p-3">
+            <h4 className="text-xs font-semibold uppercase text-dataly-muted">Antwort-Verlässlichkeit</h4>
+            <Select
+              name="reliabilityStatus"
+              value={form.reliabilityStatus}
+              onChange={handleChange}
+              disabled={campaignLocked || loading || request.status !== 'RESPONDED'}
+            >
+              <option value="NOT_REVIEWED">{reliabilityLabels.NOT_REVIEWED}</option>
+              <option value="RELIABLE">{reliabilityLabels.RELIABLE}</option>
+              <option value="DOUBTFUL">{reliabilityLabels.DOUBTFUL}</option>
+              <option value="UNRELIABLE">{reliabilityLabels.UNRELIABLE}</option>
+            </Select>
+            <Textarea
+              name="reliabilityNote"
+              value={form.reliabilityNote}
+              onChange={handleChange}
+              rows={3}
+              disabled={campaignLocked || loading || request.status !== 'RESPONDED'}
+              placeholder="Notiz zu Identität, direktem Rücklauf oder weiteren Rückfragen."
+            />
+          </div>
+
+          <div className="space-y-2 rounded-md border border-dataly-line p-3">
+            <h4 className="text-xs font-semibold uppercase text-dataly-muted">Differenzklärung</h4>
+            <Select
+              name="differenceResolutionStatus"
+              value={form.differenceResolutionStatus}
+              onChange={handleChange}
+              disabled={campaignLocked || loading || !request.response?.hasDifference}
+            >
+              <option value="NOT_REQUIRED">{differenceResolutionLabels.NOT_REQUIRED}</option>
+              <option value="OPEN">{differenceResolutionLabels.OPEN}</option>
+              <option value="RESOLVED">{differenceResolutionLabels.RESOLVED}</option>
+              <option value="MISSTATEMENT">{differenceResolutionLabels.MISSTATEMENT}</option>
+              <option value="NOT_MISSTATEMENT">{differenceResolutionLabels.NOT_MISSTATEMENT}</option>
+            </Select>
+            <Textarea
+              name="differenceResolutionNote"
+              value={form.differenceResolutionNote}
+              onChange={handleChange}
+              rows={3}
+              disabled={campaignLocked || loading || !request.response?.hasDifference}
+              placeholder="Ursache und Ergebnis der Differenzklärung."
+            />
+          </div>
+
+          <div className="space-y-2 rounded-md border border-dataly-line p-3">
+            <h4 className="text-xs font-semibold uppercase text-dataly-muted">Alternative Prüfungshandlung</h4>
+            <Select
+              name="alternativeProcedureStatus"
+              value={form.alternativeProcedureStatus}
+              onChange={handleChange}
+              disabled={campaignLocked || loading}
+            >
+              <option value="NOT_REQUIRED">{alternativeProcedureLabels.NOT_REQUIRED}</option>
+              <option value="OPEN">{alternativeProcedureLabels.OPEN}</option>
+              <option value="COMPLETED">{alternativeProcedureLabels.COMPLETED}</option>
+              <option value="NOT_POSSIBLE">{alternativeProcedureLabels.NOT_POSSIBLE}</option>
+            </Select>
+            <Textarea
+              name="alternativeProcedureNote"
+              value={form.alternativeProcedureNote}
+              onChange={handleChange}
+              rows={3}
+              disabled={campaignLocked || loading}
+              placeholder="Dokumentation bei Nichtantwort, Bounce oder unvollständiger Antwort."
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2 rounded-md border border-dataly-line p-3">
+          <h4 className="text-xs font-semibold uppercase text-dataly-muted">Abschlussnotiz</h4>
+          <div className="grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)]">
+            <Select
+              name="conclusionStatus"
+              value={form.conclusionStatus}
+              onChange={handleChange}
+              disabled={campaignLocked || loading}
+            >
+              <option value="OPEN">Offen</option>
+              <option value="READY">Bereit zum Abschluss</option>
+              <option value="CLOSED">Abgeschlossen</option>
+            </Select>
+            <Input
+              name="conclusionNote"
+              value={form.conclusionNote}
+              onChange={handleChange}
+              disabled={campaignLocked || loading}
+              placeholder="Kurze Schlussfolgerung zur Anfrage"
+            />
+          </div>
+        </div>
+
+        {(message || error) && (
+          <div className="space-y-2">
+            {message ? (
+              <p className="rounded-md border border-dataly-success/20 bg-dataly-success-soft px-3 py-2 text-sm text-dataly-success">
+                {message}
+              </p>
+            ) : null}
+            {error ? (
+              <p className="rounded-md border border-dataly-danger/20 bg-dataly-danger-soft px-3 py-2 text-sm text-dataly-danger">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <Button type="submit" disabled={campaignLocked || loading}>
+            {loading ? 'Speichert...' : 'Review speichern'}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+export function RequestsTable({
+  campaignId,
+  campaignStatus,
+  requests,
+}: Props) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [editingRequest, setEditingRequest] = React.useState<RequestRow | null>(null);
@@ -503,6 +791,12 @@ export function RequestsTable({ campaignId, campaignStatus, requests }: Props) {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-dataly-slate">
                     Status
                   </th>
+                  <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase text-dataly-slate xl:table-cell">
+                    Adresse
+                  </th>
+                  <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase text-dataly-slate xl:table-cell">
+                    Prüfung
+                  </th>
                   <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase text-dataly-slate lg:table-cell">
                     Versendet
                   </th>
@@ -566,6 +860,70 @@ export function RequestsTable({ campaignId, campaignStatus, requests }: Props) {
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={reqStatus.variant}>{reqStatus.label}</Badge>
+                      </td>
+                      <td className="hidden px-4 py-3 xl:table-cell">
+                        <Badge
+                          variant={
+                            req.review?.addressVerificationStatus === 'VERIFIED'
+                              ? 'success'
+                              : req.review?.addressVerificationStatus === 'NEEDS_REVIEW'
+                                ? 'warning'
+                                : 'secondary'
+                          }
+                        >
+                          {addressVerificationLabels[
+                            req.review?.addressVerificationStatus ?? 'UNVERIFIED'
+                          ] ?? 'Nicht verifiziert'}
+                        </Badge>
+                      </td>
+                      <td className="hidden px-4 py-3 xl:table-cell">
+                        <div className="flex flex-col gap-1">
+                          <Badge
+                            variant={
+                              req.review?.reliabilityStatus === 'RELIABLE'
+                                ? 'success'
+                                : req.review?.reliabilityStatus === 'DOUBTFUL'
+                                  ? 'warning'
+                                  : req.review?.reliabilityStatus === 'UNRELIABLE'
+                                    ? 'destructive'
+                                    : 'secondary'
+                            }
+                          >
+                            {reliabilityLabels[
+                              req.review?.reliabilityStatus ?? 'NOT_REVIEWED'
+                            ] ?? 'Nicht beurteilt'}
+                          </Badge>
+                          {req.response?.hasDifference ? (
+                            <Badge
+                              variant={
+                                ['RESOLVED', 'MISSTATEMENT', 'NOT_MISSTATEMENT'].includes(
+                                  req.review?.differenceResolutionStatus ?? ''
+                                )
+                                  ? 'success'
+                                  : 'warning'
+                              }
+                            >
+                              {differenceResolutionLabels[
+                                req.review?.differenceResolutionStatus ?? 'OPEN'
+                              ] ?? 'Differenz offen'}
+                            </Badge>
+                          ) : null}
+                          {['SENT', 'BOUNCED'].includes(req.status) ? (
+                            <Badge
+                              variant={
+                                ['COMPLETED', 'NOT_POSSIBLE'].includes(
+                                  req.review?.alternativeProcedureStatus ?? ''
+                                )
+                                  ? 'success'
+                                  : 'warning'
+                              }
+                            >
+                              {alternativeProcedureLabels[
+                                req.review?.alternativeProcedureStatus ?? 'OPEN'
+                              ] ?? 'Alternative offen'}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="hidden px-4 py-3 text-dataly-slate lg:table-cell">
                         {formatDate(req.sentAt)}
@@ -660,14 +1018,21 @@ export function RequestsTable({ campaignId, campaignStatus, requests }: Props) {
         </Card>
 
         {selectedRequest && (
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.85fr)]">
-            <RequestResponseDetails campaignId={campaignId} request={selectedRequest} />
-            <RequestAuditLog
+          <div className="space-y-3">
+            <ReviewPanel
               campaignId={campaignId}
-              requestId={selectedRequest.id}
-              partnerName={selectedRequest.partnerName}
-              onClose={() => setSelectedId(null)}
+              request={selectedRequest}
+              campaignLocked={campaignLocked}
             />
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.85fr)]">
+              <RequestResponseDetails campaignId={campaignId} request={selectedRequest} />
+              <RequestAuditLog
+                campaignId={campaignId}
+                requestId={selectedRequest.id}
+                partnerName={selectedRequest.partnerName}
+                onClose={() => setSelectedId(null)}
+              />
+            </div>
           </div>
         )}
 

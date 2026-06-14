@@ -11,6 +11,7 @@ import { ImportCsvDialog } from '@/components/sba/import-csv-dialog';
 import { RequestsTable } from '@/components/sba/requests-table';
 import { CampaignNotificationSettings } from '@/components/sba/campaign-notification-settings';
 import { canViewMandant } from '@/lib/mandant-permissions';
+import { confirmationMethodLabels, counterpartyTypeLabels } from '@/lib/sba';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ async function getCampaign(id: string) {
       include: {
         engagement: { include: { mandant: true } },
         requests: {
-          include: { response: true },
+          include: { response: true, review: true },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -93,6 +94,12 @@ export default async function CampaignDetailPage({
   ).length;
   const draftCount = campaign.requests.filter((r) => r.status === 'DRAFT').length;
   const sentOnlyCount = campaign.requests.filter((r) => r.status === 'SENT').length;
+  const methodLabel =
+    confirmationMethodLabels[campaign.confirmationMethod as keyof typeof confirmationMethodLabels] ??
+    campaign.confirmationMethod;
+  const counterpartyLabel =
+    counterpartyTypeLabels[campaign.counterpartyType as keyof typeof counterpartyTypeLabels] ??
+    campaign.counterpartyType;
 
   return (
     <div>
@@ -109,7 +116,13 @@ export default async function CampaignDetailPage({
             {campaign.engagement.mandant.name} · {campaign.engagement.title}
           </p>
         </div>
-        <Badge variant={campStatus.variant}>{campStatus.label}</Badge>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Badge variant="secondary">{counterpartyLabel}</Badge>
+          <Badge variant={campaign.confirmationMethod === 'OPEN' ? 'info' : 'outline'}>
+            {methodLabel}
+          </Badge>
+          <Badge variant={campStatus.variant}>{campStatus.label}</Badge>
+        </div>
       </div>
 
       <div className="p-6 space-y-6">
@@ -133,10 +146,18 @@ export default async function CampaignDetailPage({
               {campaign.balanceDate && (
                 <div className="flex items-center gap-1.5">
                   <Calendar className="h-4 w-4 text-dataly-muted" />
-                  <span>Stichtag: {formatDate(campaign.balanceDate)}</span>
-                </div>
-              )}
+              <span>Stichtag: {formatDate(campaign.balanceDate)}</span>
             </div>
+          )}
+          <div>
+            <Badge variant="secondary">{counterpartyLabel}</Badge>
+          </div>
+          <div>
+            <Badge variant={campaign.confirmationMethod === 'OPEN' ? 'info' : 'outline'}>
+              {methodLabel}
+            </Badge>
+          </div>
+        </div>
           </CardContent>
         </Card>
 
@@ -166,6 +187,8 @@ export default async function CampaignDetailPage({
           <RequestsTable
             campaignId={id}
             campaignStatus={campaign.status}
+            confirmationMethod={campaign.confirmationMethod}
+            counterpartyType={campaign.counterpartyType}
             requests={campaign.requests}
           />
         </div>

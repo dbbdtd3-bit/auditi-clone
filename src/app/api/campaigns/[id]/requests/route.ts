@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const requests = await prisma.confirmationRequest.findMany({
       where: { campaignId: id },
-      include: { response: true },
+      include: { response: true, review: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -42,6 +42,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     }
 
+    if (campaign.status === 'COMPLETED' || campaign.status === 'ARCHIVED') {
+      return NextResponse.json(
+        { error: 'UngÃ¼ltige Anfrage: Abgeschlossene oder archivierte Kampagnen kÃ¶nnen nicht bearbeitet werden.' },
+        { status: 400 }
+      );
+    }
+
     const body = await req.json();
     const { partnerName, partnerEmail, accountNumber, expectedBalance, currency } = body;
 
@@ -63,7 +70,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         status: 'DRAFT',
         publicToken,
         tokenExpiresAt,
+        review: {
+          create: {
+            addressVerificationStatus: 'UNVERIFIED',
+          },
+        },
       },
+      include: { response: true, review: true },
     });
 
     await prisma.auditEvent.create({

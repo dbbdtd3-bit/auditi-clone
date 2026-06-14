@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { confirmationMethodLabels, counterpartyTypeLabels } from './sba';
 
 const SMTP_HOST = process.env.BREVO_SMTP_HOST ?? 'smtp-relay.brevo.com';
 const SMTP_PORT = Number(process.env.BREVO_SMTP_PORT ?? 587);
@@ -209,6 +210,8 @@ export interface ConfirmationEmailData {
   balanceDate: string;
   portalUrl: string;
   expiresAt: string;
+  confirmationMethod?: string;
+  counterpartyType?: string;
 }
 
 function buildConfirmationHtml(
@@ -219,6 +222,20 @@ function buildConfirmationHtml(
   const safeBalanceDate = escapeHtml(data.balanceDate);
   const safeExpiresAt = escapeHtml(data.expiresAt);
   const isReminder = variant === 'reminder';
+  const method = data.confirmationMethod ?? 'STATED';
+  const isOpen = method === 'OPEN';
+  const methodLabel = confirmationMethodLabels[method as keyof typeof confirmationMethodLabels] ?? method;
+  const counterpartyLabel = data.counterpartyType
+    ? counterpartyTypeLabels[data.counterpartyType as keyof typeof counterpartyTypeLabels] ?? data.counterpartyType
+    : null;
+  const details: EmailDetail[] = [
+    { label: 'Mandant', value: data.kanzleiName },
+    { label: 'BestÃ¤tigungsmethode', value: methodLabel },
+    ...(counterpartyLabel ? [{ label: 'Richtung', value: counterpartyLabel }] : []),
+    { label: 'Stichtag', value: safeBalanceDate },
+    ...(isOpen ? [] : [{ label: 'Saldo laut BuchfÃ¼hrung', value: balanceFormatted, strong: true }]),
+    { label: 'RÃ¼ckmeldung bis', value: safeExpiresAt },
+  ];
 
   return buildEmailLayout({
     subjectLabel: isReminder ? 'Erinnerung' : 'Saldobestätigung',
@@ -236,6 +253,7 @@ function buildConfirmationHtml(
       { label: 'Saldo laut Buchführung', value: balanceFormatted, strong: true },
       { label: 'Rückmeldung bis', value: safeExpiresAt },
     ],
+    ...(isOpen ? { details } : {}),
     buttonLabel: 'Zum Antwortportal',
     buttonUrl: data.portalUrl,
     noticeHtml: `

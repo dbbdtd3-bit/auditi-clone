@@ -21,6 +21,8 @@ export interface ConfirmationRequestEmailProps {
   balanceDate: string;
   portalUrl: string;
   expiresAt: string;
+  confirmationMethod?: string;
+  counterpartyType?: string;
 }
 
 // Stub — wird in Phase 2 mit React Email implementiert

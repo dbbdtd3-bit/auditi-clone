@@ -73,7 +73,7 @@ export function ItemRow({ item, listId, workspaceId, checked, onCheckedChange }:
 
       <div
         className="flex-1 min-w-0 cursor-pointer"
-        onClick={() => router.push(`/pbc/${workspaceId}/lists/${listId}/items/${item.id}`)}
+        onClick={() => router.push(`/pbc/${workspaceId}/lists/${listId}/items/${item.id}`, { scroll: false })}
       >
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-slate-900 truncate">{item.title}</span>

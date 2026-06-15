@@ -82,7 +82,7 @@ export function ItemDetailModal({ item: initialItem, assigneeOptions }: Props) {
   }
 
   function navigate(itemId: string) {
-    router.replace(`/pbc/${workspaceId}/lists/${listId}/items/${itemId}`);
+    router.replace(`/pbc/${workspaceId}/lists/${listId}/items/${itemId}`, { scroll: false });
   }
 
   function handleMetaUpdated(updates: { status?: string; dueDate?: string | null; assignedTo?: string | null }) {

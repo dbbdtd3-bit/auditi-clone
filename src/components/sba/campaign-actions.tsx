@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Send, Bell, Download } from 'lucide-react';
+import { Send, Bell, Download, FileArchive } from 'lucide-react';
 
 interface Props {
   campaignId: string;
@@ -81,6 +81,10 @@ export function CampaignActions({ campaignId, status, draftCount, sentCount }: P
     window.open(`/api/campaigns/${campaignId}/export`, '_blank');
   }
 
+  function handleFilesDownload() {
+    window.open(`/api/campaigns/${campaignId}/files`, '_blank');
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">
@@ -109,6 +113,11 @@ export function CampaignActions({ campaignId, status, draftCount, sentCount }: P
         <Button variant="outline" onClick={handleExport}>
           <Download className="h-4 w-4" />
           CSV Export
+        </Button>
+
+        <Button variant="outline" onClick={handleFilesDownload}>
+          <FileArchive className="h-4 w-4" />
+          Dateien herunterladen
         </Button>
       </div>
 

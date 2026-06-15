@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ModalFileList } from './modal-file-list';
 import { ModalMetaPanel } from './modal-meta-panel';
 import { ModalTabs } from './modal-tabs';
+import type { PbcAssigneeOption } from '@/lib/pbc-assignees';
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
   OPEN: { label: 'Offen', variant: 'secondary' },
@@ -64,9 +65,10 @@ interface Props {
       workspace: { id: string };
     };
   };
+  assigneeOptions: PbcAssigneeOption[];
 }
 
-export function ItemDetailModal({ item: initialItem }: Props) {
+export function ItemDetailModal({ item: initialItem, assigneeOptions }: Props) {
   const router = useRouter();
   const [item, setItem] = React.useState(initialItem);
   const [open, setOpen] = React.useState(true);
@@ -148,6 +150,7 @@ export function ItemDetailModal({ item: initialItem }: Props) {
               {/* Right: Meta */}
               <ModalMetaPanel
                 item={item}
+                assigneeOptions={assigneeOptions}
                 onUpdated={handleMetaUpdated}
               />
             </div>

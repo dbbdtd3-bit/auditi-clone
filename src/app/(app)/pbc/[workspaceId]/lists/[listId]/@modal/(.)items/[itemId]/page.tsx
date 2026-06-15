@@ -2,6 +2,9 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { ItemDetailModal } from '@/components/pbc/item-detail-modal';
 import { getPresignedDownload } from '@/lib/obs';
+import { auth } from '@/lib/auth';
+import { canAccessWorkspace } from '@/lib/pbc-access';
+import { getPbcListAssigneeOptions } from '@/lib/pbc-assignees';
 
 export default async function ModalItemPage({
   params,
@@ -10,7 +13,14 @@ export default async function ModalItemPage({
 }) {
   const { workspaceId, listId, itemId } = await params;
 
-  const [item, siblings] = await Promise.all([
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  if (!user?.id) notFound();
+
+  const isWp = user.role === 'WP_ADMIN' || user.role === 'WP_TEAM';
+  if (!await canAccessWorkspace(user.id, isWp, workspaceId)) notFound();
+
+  const [item, siblings, assigneeOptions] = await Promise.all([
     prisma.pbcRequestItem.findUnique({
       where: { id: itemId },
       include: {
@@ -29,9 +39,11 @@ export default async function ModalItemPage({
       select: { id: true, sortOrder: true },
       orderBy: { sortOrder: 'asc' },
     }),
+    getPbcListAssigneeOptions(listId),
   ]);
 
   if (!item) notFound();
+  if (!assigneeOptions) notFound();
   if (item.listId !== listId || item.list.workspaceId !== workspaceId) notFound();
 
   const idx = siblings.findIndex((s) => s.id === itemId);
@@ -66,6 +78,7 @@ export default async function ModalItemPage({
           workspace: { id: item.list.workspaceId },
         },
       }}
+      assigneeOptions={assigneeOptions}
     />
   );
 }

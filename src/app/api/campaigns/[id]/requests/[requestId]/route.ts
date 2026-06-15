@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { recordAudit } from '@/lib/audit';
 import { canViewMandant } from '@/lib/mandant-permissions';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { deleteObject } from '@/lib/obs';
 
 type RouteParams = {
   params: Promise<{ id: string; requestId: string }>;
@@ -46,6 +47,14 @@ function parseRequestBody(body: Record<string, unknown>) {
   };
 }
 
+function hasLockedAuditFields(status: string) {
+  return status === 'RESPONDED' || status === 'CLOSED';
+}
+
+function decimalEquals(a: Prisma.Decimal, b: Prisma.Decimal) {
+  return a.toFixed(2) === b.toFixed(2);
+}
+
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const user = await getAuthUser();
@@ -79,13 +88,6 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (request.status === 'RESPONDED' || request.status === 'CLOSED') {
-      return NextResponse.json(
-        { error: 'Ungültige Anfrage: Beantwortete oder geschlossene Anfragen können nicht bearbeitet werden.' },
-        { status: 400 }
-      );
-    }
-
     const body = (await req.json()) as Record<string, unknown>;
     const parsed = parseRequestBody(body);
 
@@ -93,7 +95,27 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
-    const emailChanged = request.partnerEmail.toLowerCase() !== parsed.data.partnerEmail.toLowerCase();
+    const lockedAuditFields = hasLockedAuditFields(request.status);
+    if (lockedAuditFields) {
+      const emailChangedForLockedRequest =
+        request.partnerEmail.toLowerCase() !== parsed.data.partnerEmail.toLowerCase();
+      const balanceChangedForLockedRequest =
+        !decimalEquals(request.expectedBalance, parsed.data.expectedBalance);
+
+      if (emailChangedForLockedRequest || balanceChangedForLockedRequest) {
+        return NextResponse.json(
+          { error: 'E-Mail-Adresse und erwarteter Saldo bleiben nach einer Antwort unveraendert.' },
+          { status: 400 }
+        );
+      }
+
+      parsed.data.partnerEmail = request.partnerEmail;
+      parsed.data.expectedBalance = request.expectedBalance;
+    }
+
+    const emailChanged =
+      !lockedAuditFields &&
+      request.partnerEmail.toLowerCase() !== parsed.data.partnerEmail.toLowerCase();
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.confirmationRequest.update({
@@ -180,6 +202,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     const request = await prisma.confirmationRequest.findFirst({
       where: { id: requestId, campaignId: id },
       include: {
+        response: true,
         campaign: {
           include: { engagement: { select: { mandantId: true } } },
         },
@@ -201,17 +224,28 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (!['DRAFT', 'QUEUED', 'SENT', 'BOUNCED'].includes(request.status)) {
-      return NextResponse.json(
-        { error: 'Ungültige Anfrage: Beantwortete oder geschlossene Anfragen können nicht gelöscht werden.' },
-        { status: 400 }
-      );
-    }
+    const responseId = request.response?.id;
+    const attachmentKey = request.response?.attachmentKey;
+    const pdfKey = request.pdfKey;
 
-    await prisma.$transaction([
-      prisma.auditEvent.deleteMany({ where: { requestId } }),
-      prisma.confirmationRequest.delete({ where: { id: requestId } }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      if (responseId) {
+        await tx.differenceComment.deleteMany({ where: { responseId } });
+        await tx.confirmationResponse.delete({ where: { id: responseId } });
+      }
+      await tx.confirmationRequestReview.deleteMany({ where: { requestId } });
+      await tx.auditEvent.deleteMany({ where: { requestId } });
+      await tx.confirmationRequest.delete({ where: { id: requestId } });
+    });
+
+    for (const key of [attachmentKey, pdfKey]) {
+      if (!key) continue;
+      try {
+        await deleteObject(key);
+      } catch {
+        // Best-effort object cleanup
+      }
+    }
 
     void recordAudit({
       actorId: user.id,

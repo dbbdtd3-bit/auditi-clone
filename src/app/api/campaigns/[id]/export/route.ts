@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
+import { canViewMandant } from '@/lib/mandant-permissions';
+
+const CSV_DELIMITER = ';';
 
 function formatDate(d: Date | null | undefined): string {
   if (!d) return '';
@@ -9,33 +12,37 @@ function formatDate(d: Date | null | undefined): string {
 
 function escapeCsvField(value: string | null | undefined): string {
   const str = value == null ? '' : String(value);
-  // Wrap in quotes if the value contains commas, quotes, or newlines
-  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+  if (
+    str.includes(CSV_DELIMITER) ||
+    str.includes('"') ||
+    str.includes('\n') ||
+    str.includes('\r')
+  ) {
     return '"' + str.replace(/"/g, '""') + '"';
   }
   return str;
 }
 
 const CSV_HEADERS = [
-  'confirmationMethod',
-  'counterpartyType',
-  'partnerName',
-  'partnerEmail',
-  'accountNumber',
-  'expectedBalance',
-  'currency',
-  'status',
-  'sentAt',
-  'respondedAt',
-  'confirmedBalance',
-  'hasDifference',
-  'differenceNote',
-  'addressVerificationStatus',
-  'reliabilityStatus',
-  'differenceResolutionStatus',
-  'alternativeProcedureStatus',
-  'conclusionStatus',
-  'conclusionNote',
+  'Confirmation Method',
+  'Counterparty Type',
+  'Partner Name',
+  'Partner Email',
+  'Account Number',
+  'Expected Balance',
+  'Currency',
+  'Status',
+  'Sent At',
+  'Responded At',
+  'Confirmed Balance',
+  'Has Difference',
+  'Difference Note',
+  'Address Verification Status',
+  'Reliability Status',
+  'Difference Resolution Status',
+  'Alternative Procedure Status',
+  'Conclusion Status',
+  'Conclusion Note',
 ];
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -46,10 +53,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
 
-    const campaign = await prisma.confirmationCampaign.findUnique({ where: { id } });
+    const campaign = await prisma.confirmationCampaign.findUnique({
+      where: { id },
+      include: { engagement: { select: { mandantId: true } } },
+    });
     if (!campaign) {
       return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     }
+    if (!await canViewMandant(user, campaign.engagement.mandantId)) return forbidden();
 
     const requests = await prisma.confirmationRequest.findMany({
       where: { campaignId: id },
@@ -57,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       orderBy: { createdAt: 'asc' },
     });
 
-    const lines: string[] = [CSV_HEADERS.join(',')];
+    const lines: string[] = [CSV_HEADERS.map(escapeCsvField).join(CSV_DELIMITER)];
 
     for (const r of requests) {
       const row = [
@@ -81,10 +92,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         escapeCsvField(r.review?.conclusionStatus),
         escapeCsvField(r.review?.conclusionNote),
       ];
-      lines.push(row.join(','));
+      lines.push(row.join(CSV_DELIMITER));
     }
 
-    const csv = lines.join('\r\n');
+    const csv = `\uFEFF${lines.join('\r\n')}`;
 
     return new NextResponse(csv, {
       status: 200,

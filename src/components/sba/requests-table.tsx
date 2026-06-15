@@ -127,11 +127,15 @@ function formatBalanceInput(amount: unknown): string {
 }
 
 function canEditRequest(req: RequestRow, campaignLocked: boolean) {
-  return !campaignLocked && req.status !== 'RESPONDED' && req.status !== 'CLOSED';
+  return !campaignLocked;
 }
 
 function canDeleteRequest(req: RequestRow, campaignLocked: boolean) {
-  return !campaignLocked && ['DRAFT', 'QUEUED', 'SENT', 'BOUNCED'].includes(req.status);
+  return !campaignLocked;
+}
+
+function hasLockedAuditFields(req: RequestRow) {
+  return req.status === 'RESPONDED' || req.status === 'CLOSED';
 }
 
 function canSendRequest(req: RequestRow, campaignLocked: boolean) {
@@ -171,6 +175,7 @@ function EditRequestDialog({
     expectedBalance: '',
     currency: 'EUR',
   });
+  const auditFieldsLocked = request ? hasLockedAuditFields(request) : false;
 
   React.useEffect(() => {
     if (!request || !open) return;
@@ -235,7 +240,9 @@ function EditRequestDialog({
         <DialogHeader>
           <DialogTitle>Partner bearbeiten</DialogTitle>
           <DialogDescription>
-            Kontakt- und Saldodaten für diese Saldenbestätigung aktualisieren.
+            {auditFieldsLocked
+              ? 'Name, Kontonummer und Waehrung koennen angepasst werden. E-Mail und erwarteter Saldo bleiben unveraendert.'
+              : 'Kontakt- und Saldodaten fuer diese Saldenbestaetigung aktualisieren.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -260,7 +267,7 @@ function EditRequestDialog({
               type="email"
               value={form.partnerEmail}
               onChange={handleChange}
-              disabled={loading}
+              disabled={loading || auditFieldsLocked}
               required
             />
           </div>
@@ -288,7 +295,7 @@ function EditRequestDialog({
                 step="0.01"
                 value={form.expectedBalance}
                 onChange={handleChange}
-                disabled={loading}
+                disabled={loading || auditFieldsLocked}
                 required
               />
             </div>
@@ -400,7 +407,7 @@ function DeleteRequestDialog({
           <DialogTitle>Partner löschen</DialogTitle>
           <DialogDescription>
             {request?.partnerName
-              ? `${request.partnerName} wird aus dieser Kampagne entfernt. Bereits beantwortete oder geschlossene Anfragen bleiben aus Audit-Gründen geschützt.`
+              ? `${request.partnerName} wird aus dieser Kampagne entfernt. Zugehoerige Antworten, Kommentare und Belege werden ebenfalls geloescht.`
               : 'Dieser Partner wird aus der Kampagne entfernt.'}
           </DialogDescription>
         </DialogHeader>

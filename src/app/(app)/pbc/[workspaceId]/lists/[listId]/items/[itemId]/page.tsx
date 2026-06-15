@@ -15,6 +15,7 @@ import {
 import { FileUploader } from '@/components/pbc/file-uploader';
 import { CommentSection } from '@/components/pbc/comment-section';
 import { ItemStatusActions } from '@/components/pbc/item-status-actions';
+import { canAccessWorkspace } from '@/lib/pbc-access';
 
 const statusConfig: Record<string, {
   label: string;
@@ -68,7 +69,16 @@ export default async function ItemDetailPage({
   const engagement = item.list.workspace.engagement;
   const cfg = statusConfig[item.status] || statusConfig.OPEN;
 
-  const currentUser = session?.user as { name?: string; role?: string } | undefined;
+  const currentUser = session?.user as { id?: string; name?: string; role?: string } | undefined;
+  if (!currentUser?.id) notFound();
+
+  const canAccess = await canAccessWorkspace(
+    currentUser.id,
+    currentUser.role === 'WP_ADMIN' || currentUser.role === 'WP_TEAM',
+    workspaceId
+  );
+  if (!canAccess) notFound();
+
   const currentUserName = currentUser?.name || 'Unbekannt';
   const currentUserRole = currentUser?.role || '';
   const isWpUser = ['WP_ADMIN', 'WP_TEAM'].includes(currentUserRole);

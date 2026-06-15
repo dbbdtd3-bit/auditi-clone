@@ -5,6 +5,7 @@ import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-au
 import { deleteObject } from '@/lib/obs';
 import { canAccessWorkspace, getItemContext } from '@/lib/pbc-access';
 import { recordAudit } from '@/lib/audit';
+import { isAllowedPbcAssignee, normalizePbcAssigneeValue } from '@/lib/pbc-assignees';
 
 const VALID_STATUSES: string[] = ['OPEN', 'UPLOADED', 'ACCEPTED', 'NEEDS_REVISION', 'REJECTED'];
 
@@ -73,12 +74,30 @@ export async function PUT(
       title?: string;
       description?: string;
       status?: string;
-      assignedTo?: string;
+      assignedTo?: string | null;
       dueDate?: string | null;
     };
 
+    const ctx = await getItemContext(itemId);
+    if (!ctx) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    if (!await canAccessWorkspace(user.id, true, ctx.workspaceId)) return forbidden();
+
     if (status && !VALID_STATUSES.includes(status)) {
       return NextResponse.json({ error: 'Ungültiger Status' }, { status: 400 });
+    }
+
+    let normalizedAssignedTo: string | null | undefined = undefined;
+    if (assignedTo !== undefined) {
+      normalizedAssignedTo = normalizePbcAssigneeValue(assignedTo);
+      if (normalizedAssignedTo === undefined) {
+        return NextResponse.json({ error: 'Ungueltige Zuweisung' }, { status: 400 });
+      }
+      if (!await isAllowedPbcAssignee(ctx.listId, normalizedAssignedTo)) {
+        return NextResponse.json(
+          { error: 'Diese Person ist fuer diese Liste nicht zuweisbar.' },
+          { status: 400 }
+        );
+      }
     }
 
     let parsedDueDate: Date | null | undefined = undefined;
@@ -106,7 +125,7 @@ export async function PUT(
           ...(title !== undefined && { title }),
           ...(description !== undefined && { description }),
           ...(status !== undefined && { status: status as PbcItemStatus }),
-          ...(assignedTo !== undefined && { assignedTo }),
+          ...(normalizedAssignedTo !== undefined && { assignedTo: normalizedAssignedTo }),
           ...(parsedDueDate !== undefined && { dueDate: parsedDueDate }),
         },
       });
@@ -156,6 +175,10 @@ export async function DELETE(
     if (!isWpUser(user)) return forbidden();
 
     const { itemId } = await params;
+
+    const ctx = await getItemContext(itemId);
+    if (!ctx) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+    if (!await canAccessWorkspace(user.id, true, ctx.workspaceId)) return forbidden();
 
     const item = await prisma.pbcRequestItem.findUnique({
       where: { id: itemId },

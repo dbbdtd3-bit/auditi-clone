@@ -4,6 +4,7 @@ import { PbcItemStatus } from '@prisma/client';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { canAccessWorkspace, getListWorkspaceId } from '@/lib/pbc-access';
 import { deleteObject } from '@/lib/obs';
+import { isAllowedPbcAssignee, normalizePbcAssigneeValue } from '@/lib/pbc-assignees';
 
 type BulkOp = 'status' | 'dueDate' | 'assign' | 'delete';
 
@@ -105,9 +106,20 @@ export async function PATCH(
     }
 
     if (op === 'assign') {
+      const normalizedAssignedTo = normalizePbcAssigneeValue(value ?? null);
+      if (normalizedAssignedTo === undefined) {
+        return NextResponse.json({ error: 'Ungueltige Zuweisung' }, { status: 400 });
+      }
+      if (!await isAllowedPbcAssignee(listId, normalizedAssignedTo)) {
+        return NextResponse.json(
+          { error: 'Diese Person ist fuer diese Liste nicht zuweisbar.' },
+          { status: 400 }
+        );
+      }
+
       await prisma.pbcRequestItem.updateMany({
         where: { id: { in: ids }, listId },
-        data: { assignedTo: value || null },
+        data: { assignedTo: normalizedAssignedTo },
       });
 
       return NextResponse.json({ success: true, count: ids.length });

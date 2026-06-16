@@ -95,7 +95,7 @@ export function CreateCampaignDialog({ engagementId }: Props) {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>SBA-Kampagne erstellen</DialogTitle>
           </DialogHeader>
@@ -127,7 +127,7 @@ export function CreateCampaignDialog({ engagementId }: Props) {
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
               <div className="space-y-1.5">
                 <Label htmlFor="camp-confirmationMethod">Methode *</Label>
                 <Select

@@ -37,9 +37,9 @@ export function PublicRequestSummary({ request }: { request: PublicRequestData }
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-dataly-line bg-dataly-surface-subtle px-5 py-4">
-        <p className="text-xs font-semibold uppercase text-dataly-blue">Saldenbestätigung</p>
+        <p className="text-xs font-semibold uppercase text-dataly-blue">Bestätigungsanfrage</p>
         <h2 className="mt-1 text-base font-semibold leading-6 text-dataly-ink">
-          {isOpen ? 'Offene Saldenabfrage' : 'Angefragter Saldo'}
+          {counterpartyLabel}
         </h2>
       </div>
       <CardContent className="p-5">

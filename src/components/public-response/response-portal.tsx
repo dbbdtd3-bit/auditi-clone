@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { PortalStatusCard } from '@/components/public-response/portal-status-card';
 import { PublicRequestSummary, formatBalance } from '@/components/public-response/request-summary';
+import { counterpartyTypeLabels } from '@/lib/sba';
 
 type ClientPageState = PublicPortalState | 'success' | 'error';
 
@@ -68,6 +69,10 @@ export function ResponsePortal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isOpenConfirmation = requestData?.confirmationMethod === 'OPEN';
+  const confirmationTypeLabel = requestData
+    ? counterpartyTypeLabels[requestData.counterpartyType as keyof typeof counterpartyTypeLabels] ??
+      requestData.counterpartyType
+    : 'Bestätigung';
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -235,8 +240,8 @@ export function ResponsePortal({
   if (pageState === 'success') {
     return (
       <PortalStatusCard icon={CheckCircle} tone="success" title="Vielen Dank für Ihre Antwort">
-        <p>Ihre Saldobestätigung wurde erfolgreich übermittelt und der Prüfungsdokumentation beigefügt.</p>
-        {requestData ? <p>Die Bestätigung wurde für {requestData.clientName} gespeichert.</p> : null}
+        <p>Ihre Bestätigung wurde erfolgreich übermittelt und der Prüfungsdokumentation beigefügt.</p>
+        {requestData ? <p>{confirmationTypeLabel} für {requestData.clientName} wurde gespeichert.</p> : null}
       </PortalStatusCard>
     );
   }
@@ -261,12 +266,12 @@ export function ResponsePortal({
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase text-dataly-blue">Dataly Antwortportal</p>
               <h1 className="mt-1 text-[28px] font-semibold leading-9 text-dataly-ink">
-                {isOpenConfirmation ? 'Saldo mitteilen' : 'Saldo bestätigen'}
+                {isOpenConfirmation ? 'Rückmeldung erfassen' : 'Bestätigung abgeben'}
               </h1>
               <p className="mt-2 text-sm leading-[22px] text-dataly-slate">
                 {isOpenConfirmation
-                  ? 'Bitte teilen Sie den Saldo laut Ihrer Buchführung zum angegebenen Stichtag direkt an Dataly mit.'
-                  : 'Bitte prüfen Sie den angefragten Saldo und senden Sie Ihre Bestätigung oder Abweichung direkt an Dataly zurück.'}
+                  ? `Bitte erfassen Sie Ihre Rückmeldung zur ${confirmationTypeLabel} zum angegebenen Stichtag direkt in Dataly.`
+                  : `Bitte prüfen Sie die angefragte ${confirmationTypeLabel} und senden Sie Ihre Bestätigung oder Abweichung direkt an Dataly zurück.`}
               </p>
             </div>
           </div>
@@ -300,7 +305,7 @@ export function ResponsePortal({
           <div className="border-b border-dataly-line bg-dataly-surface-subtle px-5 py-4">
             <p className="text-xs font-semibold uppercase text-dataly-slate">Rückmeldung erfassen</p>
             <h2 className="mt-1 text-base font-semibold leading-6 text-dataly-ink">
-              {isOpenConfirmation ? 'Ihr Saldo' : 'Ihre Bestätigung'}
+              {isOpenConfirmation ? 'Ihre Rückmeldung' : 'Ihre Bestätigung'}
             </h2>
           </div>
           <CardContent className="p-5">
@@ -351,7 +356,7 @@ export function ResponsePortal({
                 <>
                   <div className="space-y-3">
                     <Label>
-                      Saldobestätigung <span className="text-dataly-danger">*</span>
+                      Bestätigung <span className="text-dataly-danger">*</span>
                     </Label>
 
                     <label

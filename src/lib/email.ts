@@ -214,6 +214,23 @@ export interface ConfirmationEmailData {
   counterpartyType?: string;
 }
 
+function confirmationTypeLabel(data: Pick<ConfirmationEmailData, 'counterpartyType'>): string {
+  return data.counterpartyType
+    ? counterpartyTypeLabels[data.counterpartyType as keyof typeof counterpartyTypeLabels] ??
+        data.counterpartyType
+    : 'Bestätigung';
+}
+
+function confirmationEmailSubject(
+  data: ConfirmationEmailData,
+  variant: 'request' | 'reminder' = 'request'
+): string {
+  const typeLabel = confirmationTypeLabel(data);
+  return variant === 'reminder'
+    ? `Erinnerung: ${typeLabel} zum ${data.balanceDate} noch ausstehend`
+    : `${typeLabel} zum ${data.balanceDate} - Bitte um Rückmeldung`;
+}
+
 function buildConfirmationHtml(
   data: ConfirmationEmailData,
   variant: 'request' | 'reminder' = 'request'
@@ -225,25 +242,23 @@ function buildConfirmationHtml(
   const method = data.confirmationMethod ?? 'STATED';
   const isOpen = method === 'OPEN';
   const methodLabel = confirmationMethodLabels[method as keyof typeof confirmationMethodLabels] ?? method;
-  const counterpartyLabel = data.counterpartyType
-    ? counterpartyTypeLabels[data.counterpartyType as keyof typeof counterpartyTypeLabels] ?? data.counterpartyType
-    : null;
+  const counterpartyLabel = confirmationTypeLabel(data);
   const details: EmailDetail[] = [
     { label: 'Mandant', value: data.kanzleiName },
     { label: 'Bestätigungsmethode', value: methodLabel },
-    ...(counterpartyLabel ? [{ label: 'Bestätigungsart', value: counterpartyLabel }] : []),
+    { label: 'Bestätigungsart', value: counterpartyLabel },
     { label: 'Stichtag', value: safeBalanceDate },
     ...(isOpen ? [] : [{ label: 'Saldo laut BuchfÃ¼hrung', value: balanceFormatted, strong: true }]),
     { label: 'RÃ¼ckmeldung bis', value: safeExpiresAt },
   ];
 
   return buildEmailLayout({
-    subjectLabel: isReminder ? 'Erinnerung' : 'Saldobestätigung',
-    title: isReminder ? 'Erinnerung zur Saldenbestätigung' : 'Saldenbestätigung',
+    subjectLabel: isReminder ? 'Erinnerung' : 'Bestätigungsanfrage',
+    title: isReminder ? `Erinnerung: ${counterpartyLabel}` : counterpartyLabel,
     introHtml: `
       <p style="margin: 0 0 12px;">Sehr geehrte Damen und Herren,</p>
       <p style="margin: 0;">
-        ${isReminder ? 'zu dieser Anfrage liegt noch keine Rückmeldung vor.' : 'im Rahmen unserer Prüfung bitten wir Sie um Rückmeldung zu folgendem Saldo.'}
+        ${isReminder ? 'zu dieser Anfrage liegt noch keine Rückmeldung vor.' : `im Rahmen unserer Prüfung bitten wir Sie um Rückmeldung zur ${counterpartyLabel}.`}
         Bitte prüfen Sie die Angaben und antworten Sie über das sichere Dataly-Portal.
       </p>
     `,
@@ -261,7 +276,7 @@ export async function sendConfirmationEmail(data: ConfirmationEmailData): Promis
   if (!isEmailConfigured()) {
     console.log('[email] BREVO nicht konfiguriert — E-Mail-Versand übersprungen', {
       to: data.to,
-      subject: `Saldenbestätigung zum ${data.balanceDate} — Bitte um Rückmeldung`,
+      subject: confirmationEmailSubject(data),
     });
     return;
   }
@@ -270,7 +285,7 @@ export async function sendConfirmationEmail(data: ConfirmationEmailData): Promis
   await transporter.sendMail({
     from: fromAddress(data.kanzleiName),
     to: data.to,
-    subject: `Saldenbestätigung zum ${data.balanceDate} — Bitte um Rückmeldung`,
+    subject: confirmationEmailSubject(data),
     html: buildConfirmationHtml(data),
   });
 }
@@ -279,7 +294,7 @@ export async function sendReminderEmail(data: ConfirmationEmailData): Promise<vo
   if (!isEmailConfigured()) {
     console.log('[email] BREVO nicht konfiguriert - E-Mail-Versand uebersprungen', {
       to: data.to,
-      subject: `Erinnerung: Saldenbestaetigung zum ${data.balanceDate} noch ausstehend`,
+      subject: confirmationEmailSubject(data, 'reminder'),
     });
     return;
   }
@@ -288,7 +303,7 @@ export async function sendReminderEmail(data: ConfirmationEmailData): Promise<vo
   await transporter.sendMail({
     from: fromAddress(data.kanzleiName),
     to: data.to,
-    subject: `Erinnerung: Saldenbestätigung zum ${data.balanceDate} noch ausstehend`,
+    subject: confirmationEmailSubject(data, 'reminder'),
     html: buildConfirmationHtml(data, 'reminder'),
   });
 }

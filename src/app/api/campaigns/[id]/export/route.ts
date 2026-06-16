@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { canViewMandant } from '@/lib/mandant-permissions';
-import { counterpartyTypeLabels } from '@/lib/sba';
+import { confirmationMethodLabels, counterpartyTypeLabels } from '@/lib/sba';
 
 const CSV_DELIMITER = ';';
 
@@ -25,7 +25,7 @@ function escapeCsvField(value: string | null | undefined): string {
 }
 
 const CSV_HEADERS = [
-  'Confirmation Method',
+  'Bestätigungsmethode',
   'Bestätigungsart',
   'Partner Name',
   'Partner Email',
@@ -73,7 +73,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     for (const r of requests) {
       const row = [
-        escapeCsvField(campaign.confirmationMethod),
+        escapeCsvField(
+          confirmationMethodLabels[campaign.confirmationMethod as keyof typeof confirmationMethodLabels] ??
+            campaign.confirmationMethod,
+        ),
         escapeCsvField(
           counterpartyTypeLabels[campaign.counterpartyType as keyof typeof counterpartyTypeLabels] ??
             campaign.counterpartyType,

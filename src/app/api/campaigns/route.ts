@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUser, isWpUser, unauthorized, forbidden } from '@/lib/require-auth';
 import { visibleCampaignWhere, visibleEngagementWhere } from '@/lib/mandant-access';
-import { isConfirmationMethod, isCounterpartyType } from '@/lib/sba';
+import { DEFAULT_COUNTERPARTY_TYPE, isConfirmationMethod, isCounterpartyType } from '@/lib/sba';
 
 export async function GET(req: NextRequest) {
   try {
@@ -45,14 +45,14 @@ export async function POST(req: NextRequest) {
     }
 
     const method = confirmationMethod || 'STATED';
-    const type = counterpartyType || 'DEBTOR';
+    const type = counterpartyType || DEFAULT_COUNTERPARTY_TYPE;
 
     if (!isConfirmationMethod(method)) {
       return NextResponse.json({ error: 'UngÃ¼ltige Anfrage: BestÃ¤tigungsmethode ist ungÃ¼ltig.' }, { status: 400 });
     }
 
     if (!isCounterpartyType(type)) {
-      return NextResponse.json({ error: 'UngÃ¼ltige Anfrage: Richtung ist ungÃ¼ltig.' }, { status: 400 });
+      return NextResponse.json({ error: 'Ungültige Anfrage: Bestätigungsart ist ungültig.' }, { status: 400 });
     }
 
     const engagement = await prisma.engagement.findFirst({

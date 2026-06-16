@@ -14,6 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect as Select } from '@/components/ui/select';
 import { Plus } from 'lucide-react';
+import {
+  COUNTERPARTY_TYPE_OPTIONS,
+  DEFAULT_COUNTERPARTY_TYPE,
+  counterpartyTypeLabels,
+} from '@/lib/sba';
 
 interface Props {
   engagementId: string;
@@ -30,7 +35,7 @@ export function CreateCampaignDialog({ engagementId }: Props) {
     title: '',
     balanceDate: today,
     confirmationMethod: 'STATED',
-    counterpartyType: 'DEBTOR',
+    counterpartyType: DEFAULT_COUNTERPARTY_TYPE,
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
@@ -72,7 +77,7 @@ export function CreateCampaignDialog({ engagementId }: Props) {
         title: '',
         balanceDate: today,
         confirmationMethod: 'STATED',
-        counterpartyType: 'DEBTOR',
+        counterpartyType: DEFAULT_COUNTERPARTY_TYPE,
       });
       router.refresh();
     } catch {
@@ -101,7 +106,7 @@ export function CreateCampaignDialog({ engagementId }: Props) {
               <Input
                 id="camp-title"
                 name="title"
-                placeholder="z. B. Debitoren Q4 2024"
+                placeholder="z. B. Debitorensalden Q4 2024"
                 value={form.title}
                 onChange={handleChange}
                 disabled={loading}
@@ -139,7 +144,7 @@ export function CreateCampaignDialog({ engagementId }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="camp-counterpartyType">Richtung *</Label>
+                <Label htmlFor="camp-counterpartyType">Bestätigungsart *</Label>
                 <Select
                   id="camp-counterpartyType"
                   name="counterpartyType"
@@ -148,8 +153,11 @@ export function CreateCampaignDialog({ engagementId }: Props) {
                   disabled={loading}
                   required
                 >
-                  <option value="DEBTOR">Debitoren</option>
-                  <option value="CREDITOR">Kreditoren</option>
+                  {COUNTERPARTY_TYPE_OPTIONS.map((type) => (
+                    <option key={type} value={type}>
+                      {counterpartyTypeLabels[type]}
+                    </option>
+                  ))}
                 </Select>
               </div>
             </div>

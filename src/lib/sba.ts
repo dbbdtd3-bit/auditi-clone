@@ -1,5 +1,18 @@
 export const CONFIRMATION_METHODS = ['OPEN', 'STATED'] as const;
-export const COUNTERPARTY_TYPES = ['DEBTOR', 'CREDITOR'] as const;
+export const COUNTERPARTY_TYPE_OPTIONS = [
+  'BANK',
+  'LAWYER',
+  'TAX_ADVISOR',
+  'DEBTOR_BALANCE',
+  'CREDITOR_BALANCE',
+  'OTHER',
+] as const;
+export const COUNTERPARTY_TYPES = [
+  ...COUNTERPARTY_TYPE_OPTIONS,
+  'DEBTOR',
+  'CREDITOR',
+] as const;
+export const DEFAULT_COUNTERPARTY_TYPE = 'DEBTOR_BALANCE';
 
 export type ConfirmationMethodValue = (typeof CONFIRMATION_METHODS)[number];
 export type CounterpartyTypeValue = (typeof COUNTERPARTY_TYPES)[number];
@@ -10,8 +23,14 @@ export const confirmationMethodLabels: Record<ConfirmationMethodValue, string> =
 };
 
 export const counterpartyTypeLabels: Record<CounterpartyTypeValue, string> = {
-  DEBTOR: 'Debitoren',
-  CREDITOR: 'Kreditoren',
+  BANK: 'Bankbestätigungen',
+  LAWYER: 'Rechtsanwaltsbestätigungen',
+  TAX_ADVISOR: 'Steuerberaterbestätigungen',
+  DEBTOR_BALANCE: 'Debitorensaldenbestätigungen',
+  CREDITOR_BALANCE: 'Kreditorensaldenbestätigungen',
+  OTHER: 'Sonstige Bestätigungen',
+  DEBTOR: 'Debitorensaldenbestätigungen',
+  CREDITOR: 'Kreditorensaldenbestätigungen',
 };
 
 export const addressVerificationLabels: Record<string, string> = {

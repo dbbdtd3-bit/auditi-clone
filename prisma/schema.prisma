@@ -169,7 +169,7 @@ model ConfirmationCampaign {
   title                  String
   balanceDate            DateTime
   confirmationMethod     ConfirmationMethod                          @default(STATED)
-  counterpartyType       CounterpartyType                             @default(DEBTOR)
+  counterpartyType       CounterpartyType                             @default(DEBTOR_BALANCE)
   status                 CampaignStatus                              @default(DRAFT)
   requests               ConfirmationRequest[]
   notificationRecipients ConfirmationCampaignNotificationRecipient[]
@@ -503,6 +503,13 @@ enum ConfirmationMethod {
 }
 
 enum CounterpartyType {
+  BANK
+  LAWYER
+  TAX_ADVISOR
+  DEBTOR_BALANCE
+  CREDITOR_BALANCE
+  OTHER
+  // Legacy values kept so existing campaigns remain readable after deploy.
   DEBTOR
   CREDITOR
 }

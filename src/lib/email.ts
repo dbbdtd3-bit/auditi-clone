@@ -230,8 +230,8 @@ function buildConfirmationHtml(
     : null;
   const details: EmailDetail[] = [
     { label: 'Mandant', value: data.kanzleiName },
-    { label: 'BestÃ¤tigungsmethode', value: methodLabel },
-    ...(counterpartyLabel ? [{ label: 'Richtung', value: counterpartyLabel }] : []),
+    { label: 'Bestätigungsmethode', value: methodLabel },
+    ...(counterpartyLabel ? [{ label: 'Bestätigungsart', value: counterpartyLabel }] : []),
     { label: 'Stichtag', value: safeBalanceDate },
     ...(isOpen ? [] : [{ label: 'Saldo laut BuchfÃ¼hrung', value: balanceFormatted, strong: true }]),
     { label: 'RÃ¼ckmeldung bis', value: safeExpiresAt },
@@ -247,13 +247,7 @@ function buildConfirmationHtml(
         Bitte prüfen Sie die Angaben und antworten Sie über das sichere Dataly-Portal.
       </p>
     `,
-    details: [
-      { label: 'Geschäftspartner', value: data.kanzleiName },
-      { label: 'Stichtag', value: safeBalanceDate },
-      { label: 'Saldo laut Buchführung', value: balanceFormatted, strong: true },
-      { label: 'Rückmeldung bis', value: safeExpiresAt },
-    ],
-    ...(isOpen ? { details } : {}),
+    details,
     buttonLabel: 'Zum Antwortportal',
     buttonUrl: data.portalUrl,
     noticeHtml: `
